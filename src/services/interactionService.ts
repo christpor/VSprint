@@ -1,21 +1,26 @@
 import { supabase } from '../supabaseClient';
 import { InteractionType } from '../App';
 
-export const getInteractions = async (userId: string) => {
-  const { data, error } = await supabase
+export const getInteractions = async (userId: string, conversationId?: string) => {
+  let query = supabase
     .from('interactions')
     .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false });
+    .eq('user_id', userId);
+  
+  if (conversationId) {
+    query = query.eq('conversation_id', conversationId);
+  }
+  
+  const { data, error } = await query.order('created_at', { ascending: true });
   
   if (error) throw error;
   return data;
 };
 
-export const createInteraction = async (userId: string, prompt: string) => {
+export const createInteraction = async (userId: string, conversationId: string, prompt: string) => {
   const { data, error } = await supabase
     .from('interactions')
-    .insert({ user_id: userId, prompt })
+    .insert({ user_id: userId, conversation_id: conversationId, prompt })
     .select()
     .single();
   

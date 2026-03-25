@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence, useScroll, useTransform } from 'motion/react';
-import { Loader2, Sparkles, AlertTriangle, Zap, Terminal, Check, Copy, Sun, Moon, ArrowRight, Code2, BrainCircuit, Target, User, Rocket, Star, CheckCircle2, Mail, Send, Settings, Play, ExternalLink } from 'lucide-react';
+import { Loader2, Sparkles, AlertTriangle, Zap, Terminal, Check, Copy, Sun, Moon, ArrowRight, Code2, BrainCircuit, Target, User, Rocket, Star, CheckCircle2, Mail, Send, Settings, Play, ExternalLink, LogOut, MessageSquare, Plus, History, Menu, X, Ticket } from 'lucide-react';
 import { GoogleGenAI, Type } from "@google/genai";
 import { DEMO_RESPONSES } from './demoData';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -15,17 +15,79 @@ interface AIResponse {
   technicalWeakPoint?: string;
   drill?: string;
   chatMessage?: string;
+  nextSteps?: string[];
 }
 
 export interface InteractionType {
   id: string;
+  user_id: string;
+  conversation_id: string;
   prompt: string;
   response: AIResponse | null;
   loading: boolean;
   statusMessage: string | null;
+  created_at: string;
 }
 
-const InteractionItem = ({ interaction, isLatest }: { interaction: InteractionType, isLatest: boolean }) => {
+interface Conversation {
+  id: string;
+  title: string;
+  created_at: string;
+}
+
+const LivePreview = ({ html, css, js }: { html?: string, css?: string, js?: string }) => {
+  const content = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+          body { 
+            margin: 0; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            padding: 20px;
+            color: #1e293b;
+            line-height: 1.5;
+          }
+          ${css || ''}
+        </style>
+      </head>
+      <body>
+        ${html || ''}
+        <script>
+          try {
+            ${js || ''}
+          } catch (err) {
+            console.error('Live Preview Error:', err);
+            document.body.innerHTML += '<div style="color: red; margin-top: 20px; font-family: monospace;">Error: ' + err.message + '</div>';
+          }
+        </script>
+      </body>
+    </html>
+  `;
+
+  return (
+    <div className="w-full h-full min-h-[400px] bg-white rounded-xl overflow-hidden border border-slate-200 dark:border-white/10 shadow-inner">
+      <iframe
+        srcDoc={content}
+        title="Live Preview"
+        className="w-full h-full min-h-[400px] border-none"
+        sandbox="allow-scripts"
+      />
+    </div>
+  );
+};
+
+const InteractionItem = ({ 
+  interaction, 
+  isLatest, 
+  onSubmit 
+}: { 
+  interaction: InteractionType, 
+  isLatest: boolean,
+  onSubmit: (e?: React.FormEvent, promptOverride?: string) => Promise<void>
+}) => {
   const [displayedExplanation, setDisplayedExplanation] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [revealedSections, setRevealedSections] = useState({
@@ -36,6 +98,7 @@ const InteractionItem = ({ interaction, isLatest }: { interaction: InteractionTy
     weakPoint: false,
     drill: false
   });
+  const [activeTab, setActiveTab] = useState<'html' | 'css' | 'js' | 'preview'>('html');
   const [copiedIndex, setCopiedIndex] = useState<string | null>(null);
 
   const htmlRef = useRef<HTMLDivElement>(null);
@@ -47,85 +110,103 @@ const InteractionItem = ({ interaction, isLatest }: { interaction: InteractionTy
 
   useEffect(() => {
     if (interaction.response) {
-      setDisplayedExplanation("");
-      setIsTyping(true);
-      setRevealedSections({ 
-        html: false, 
-        css: false, 
-        js: false, 
-        logic: false, 
-        weakPoint: false, 
-        drill: false 
-      });
+      if (interaction.response.html || interaction.response.css || interaction.response.javascript) {
+        setActiveTab('preview'); // Default to preview if code exists
+      }
 
-      const text = interaction.response.explanation || interaction.response.chatMessage || "";
-      let i = 0;
-      let lastTime = performance.now();
-      let animationFrameId: number;
+      if (interaction.loading) {
+        setDisplayedExplanation("");
+        setIsTyping(true);
+        setRevealedSections({ 
+          html: false, 
+          css: false, 
+          js: false, 
+          logic: false, 
+          weakPoint: false, 
+          drill: false 
+        });
 
-      const typeChar = (time: number) => {
-        const elapsed = time - lastTime;
-        if (elapsed > 15) {
-          const charsToAdd = Math.max(1, Math.floor(elapsed / 15));
-          i += charsToAdd;
-          setDisplayedExplanation(text.slice(0, i));
-          lastTime = time - (elapsed % 15);
-        }
-        if (i < text.length) {
-          animationFrameId = requestAnimationFrame(typeChar);
-        } else {
-          setIsTyping(false);
-          setDisplayedExplanation(text);
-        }
-      };
-      
-      animationFrameId = requestAnimationFrame(typeChar);
+        const text = interaction.response.explanation || interaction.response.chatMessage || "";
+        let i = 0;
+        let lastTime = performance.now();
+        let animationFrameId: number;
 
-      const scrollToRef = (ref: React.RefObject<HTMLDivElement | null>) => {
-        if (isLatest && ref.current) {
-          const yOffset = -100;
-          const y = ref.current.getBoundingClientRect().top + window.pageYOffset + yOffset;
-          window.scrollTo({ top: y, behavior: 'smooth' });
-        }
-      };
+        const typeChar = (time: number) => {
+          const elapsed = time - lastTime;
+          if (elapsed > 15) {
+            const charsToAdd = Math.max(1, Math.floor(elapsed / 15));
+            i += charsToAdd;
+            setDisplayedExplanation(text.slice(0, i));
+            lastTime = time - (elapsed % 15);
+          }
+          if (i < text.length) {
+            animationFrameId = requestAnimationFrame(typeChar);
+          } else {
+            setIsTyping(false);
+            setDisplayedExplanation(text);
+          }
+        };
+        
+        animationFrameId = requestAnimationFrame(typeChar);
 
-      const t1 = setTimeout(() => {
-        setRevealedSections(prev => ({ ...prev, html: true }));
-        setTimeout(() => scrollToRef(htmlRef), 50);
-      }, 400);
+        const scrollToRef = (ref: React.RefObject<HTMLDivElement | null>) => {
+          if (isLatest && ref.current) {
+            const yOffset = -100;
+            const y = ref.current.getBoundingClientRect().top + window.pageYOffset + yOffset;
+            window.scrollTo({ top: y, behavior: 'smooth' });
+          }
+        };
 
-      const t2 = setTimeout(() => {
-        setRevealedSections(prev => ({ ...prev, css: true }));
-      }, 800);
+        const t1 = setTimeout(() => {
+          setRevealedSections(prev => ({ ...prev, html: true }));
+          setTimeout(() => scrollToRef(htmlRef), 50);
+        }, 400);
 
-      const t3 = setTimeout(() => {
-        setRevealedSections(prev => ({ ...prev, js: true }));
-      }, 1200);
+        const t2 = setTimeout(() => {
+          setRevealedSections(prev => ({ ...prev, css: true }));
+        }, 800);
 
-      const t4 = setTimeout(() => {
-        setRevealedSections(prev => ({ ...prev, logic: true }));
-        setTimeout(() => scrollToRef(logicRef), 50);
-      }, 1800);
+        const t3 = setTimeout(() => {
+          setRevealedSections(prev => ({ ...prev, js: true }));
+        }, 1200);
 
-      const t5 = setTimeout(() => {
-        setRevealedSections(prev => ({ ...prev, weakPoint: true }));
-      }, 2200);
+        const t4 = setTimeout(() => {
+          setRevealedSections(prev => ({ ...prev, logic: true }));
+          setTimeout(() => scrollToRef(logicRef), 50);
+        }, 1800);
 
-      const t6 = setTimeout(() => {
-        setRevealedSections(prev => ({ ...prev, drill: true }));
-      }, 2600);
+        const t5 = setTimeout(() => {
+          setRevealedSections(prev => ({ ...prev, weakPoint: true }));
+        }, 2200);
 
-      return () => {
-        cancelAnimationFrame(animationFrameId);
-        clearTimeout(t1);
-        clearTimeout(t2);
-        clearTimeout(t3);
-        clearTimeout(t4);
-        clearTimeout(t5);
-        clearTimeout(t6);
-      };
+        const t6 = setTimeout(() => {
+          setRevealedSections(prev => ({ ...prev, drill: true }));
+        }, 2600);
+
+        return () => {
+          cancelAnimationFrame(animationFrameId);
+          clearTimeout(t1);
+          clearTimeout(t2);
+          clearTimeout(t3);
+          clearTimeout(t4);
+          clearTimeout(t5);
+          clearTimeout(t6);
+        };
+      } else {
+        // Not loading (from history), show everything immediately
+        setDisplayedExplanation(interaction.response.explanation || interaction.response.chatMessage || "");
+        setIsTyping(false);
+        setRevealedSections({ 
+          html: true, 
+          css: true, 
+          js: true, 
+          logic: true, 
+          weakPoint: true, 
+          drill: true 
+        });
+      }
     }
-  }, [interaction.response, isLatest]);
+  }, [interaction.response, isLatest, interaction.loading]);
 
   const copyToClipboard = (text: string, key: string) => {
     navigator.clipboard.writeText(text);
@@ -149,7 +230,7 @@ const InteractionItem = ({ interaction, isLatest }: { interaction: InteractionTy
 
       {/* AI Response or Loading */}
       <div className="flex justify-start w-full">
-        <div className="w-full max-w-[95%]">
+        <motion.div layout className="w-full max-w-[95%]">
           {interaction.loading && !interaction.statusMessage && (
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
@@ -196,6 +277,7 @@ const InteractionItem = ({ interaction, isLatest }: { interaction: InteractionTy
 
           {interaction.response && !interaction.loading && (
             <motion.div
+              layout
               initial="hidden"
               animate="visible"
               variants={{
@@ -214,7 +296,7 @@ const InteractionItem = ({ interaction, isLatest }: { interaction: InteractionTy
               ) : (
                 <>
                   {/* 💡 Explanation */}
-                  <motion.div variants={itemVariants} className="bg-blue-50/80 dark:bg-blue-900/10 backdrop-blur-xl border border-blue-100/50 dark:border-blue-800/20 rounded-3xl rounded-tl-sm p-6 sm:p-7 shadow-[0_10px_30px_rgba(0,0,0,0.08)] hover:scale-[1.01] transition-all duration-300">
+                  <motion.div layout variants={itemVariants} className="bg-blue-50/80 dark:bg-blue-900/10 backdrop-blur-xl border border-blue-100/50 dark:border-blue-800/20 rounded-3xl rounded-tl-sm p-6 sm:p-7 shadow-[0_10px_30px_rgba(0,0,0,0.08)] hover:scale-[1.01] transition-all duration-300">
                     <div className="flex items-center gap-3 mb-3">
                       <span className="text-2xl">🧠</span>
                       <h2 className="text-xl font-semibold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400">Explanation</h2>
@@ -227,97 +309,158 @@ const InteractionItem = ({ interaction, isLatest }: { interaction: InteractionTy
 
                   {/* 💻 Code Sections */}
                   <div className="space-y-4">
-                    {revealedSections.html && interaction.response.html && (
-                      <motion.div ref={htmlRef} initial="hidden" animate="visible" variants={itemVariants} className="bg-[#0f172a] border border-slate-800 dark:border-white/10 rounded-3xl overflow-hidden shadow-lg">
-                        <div className="flex items-center justify-between px-4 py-2 bg-slate-900 border-b border-slate-800">
-                          <span className="text-xs font-mono text-slate-400">HTML</span>
-                          <button onClick={() => copyToClipboard(interaction.response!.html, 'html')} className="text-slate-400 hover:text-white transition-colors">
-                            {copiedIndex === 'html' ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    {(interaction.response.html || interaction.response.css || interaction.response.javascript) && (
+                      <motion.div layout variants={itemVariants} className="bg-[#0f172a] border border-slate-800 dark:border-white/10 rounded-3xl overflow-hidden shadow-xl">
+                        <div className="flex items-center justify-between px-4 py-2 bg-slate-900/50 border-b border-slate-800">
+                          <div className="flex gap-4">
+                            {(interaction.response.html || interaction.response.css || interaction.response.javascript) && (
+                              <button 
+                                onClick={() => setActiveTab('preview')}
+                                className={`text-xs font-mono transition-colors py-2 border-b-2 flex items-center gap-2 ${activeTab === 'preview' ? 'text-blue-400 border-blue-400' : 'text-slate-500 border-transparent hover:text-slate-300'}`}
+                              >
+                                <Play className="w-3 h-3" />
+                                PREVIEW
+                              </button>
+                            )}
+                            {interaction.response.html && (
+                              <button 
+                                onClick={() => setActiveTab('html')}
+                                className={`text-xs font-mono transition-colors py-2 border-b-2 ${activeTab === 'html' ? 'text-blue-400 border-blue-400' : 'text-slate-500 border-transparent hover:text-slate-300'}`}
+                              >
+                                HTML
+                              </button>
+                            )}
+                            {interaction.response.css && (
+                              <button 
+                                onClick={() => setActiveTab('css')}
+                                className={`text-xs font-mono transition-colors py-2 border-b-2 ${activeTab === 'css' ? 'text-blue-400 border-blue-400' : 'text-slate-500 border-transparent hover:text-slate-300'}`}
+                              >
+                                CSS
+                              </button>
+                            )}
+                            {interaction.response.javascript && (
+                              <button 
+                                onClick={() => setActiveTab('js')}
+                                className={`text-xs font-mono transition-colors py-2 border-b-2 ${activeTab === 'js' ? 'text-blue-400 border-blue-400' : 'text-slate-500 border-transparent hover:text-slate-300'}`}
+                              >
+                                JS
+                              </button>
+                            )}
+                          </div>
+                          <button 
+                            onClick={() => {
+                              if (activeTab === 'preview') return;
+                              const code = activeTab === 'html' ? interaction.response!.html : activeTab === 'css' ? interaction.response!.css : interaction.response!.javascript;
+                              copyToClipboard(code || '', activeTab);
+                            }} 
+                            className={`text-slate-400 hover:text-white transition-colors ${activeTab === 'preview' ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+                          >
+                            {copiedIndex === activeTab ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
                           </button>
                         </div>
-                        <div className="p-4 overflow-x-auto text-sm">
-                          <SyntaxHighlighter language="html" style={vscDarkPlus} customStyle={{ margin: 0, padding: 0, background: 'transparent' }}>
-                            {interaction.response.html}
-                          </SyntaxHighlighter>
+                        <div className={`p-4 overflow-x-auto text-sm min-h-[100px] ${activeTab === 'preview' ? 'bg-white' : ''}`}>
+                          <AnimatePresence mode="wait">
+                            <motion.div
+                              key={activeTab}
+                              initial={{ opacity: 0, y: 5 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: -5 }}
+                              transition={{ duration: 0.2 }}
+                              className="h-full"
+                            >
+                              {activeTab === 'preview' ? (
+                                <LivePreview 
+                                  html={interaction.response.html} 
+                                  css={interaction.response.css} 
+                                  js={interaction.response.javascript} 
+                                />
+                              ) : (
+                                <SyntaxHighlighter 
+                                  language={activeTab === 'js' ? 'javascript' : activeTab} 
+                                  style={vscDarkPlus} 
+                                  customStyle={{ 
+                                    margin: 0, 
+                                    padding: 0, 
+                                    background: 'transparent',
+                                    fontSize: '0.875rem',
+                                    lineHeight: '1.5',
+                                    minWidth: '100%'
+                                  }}
+                                >
+                                  {(activeTab === 'html' ? interaction.response.html : activeTab === 'css' ? interaction.response.css : interaction.response.javascript) || ''}
+                                </SyntaxHighlighter>
+                              )}
+                            </motion.div>
+                          </AnimatePresence>
                         </div>
                       </motion.div>
                     )}
-                    {/* ... rest of code sections ... */}
                   </div>
                 </>
               )}
 
-                {revealedSections.css && interaction.response.css && (
-                  <motion.div ref={cssRef} initial="hidden" animate="visible" variants={itemVariants} className="bg-[#0f172a] border border-slate-800 dark:border-white/10 rounded-3xl overflow-hidden shadow-lg">
-                    <div className="flex items-center justify-between px-4 py-2 bg-slate-900 border-b border-slate-800">
-                      <span className="text-xs font-mono text-slate-400">CSS</span>
-                      <button onClick={() => copyToClipboard(interaction.response!.css, 'css')} className="text-slate-400 hover:text-white transition-colors">
-                        {copiedIndex === 'css' ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
-                      </button>
-                    </div>
-                    <div className="p-4 overflow-x-auto text-sm">
-                      <SyntaxHighlighter language="css" style={vscDarkPlus} customStyle={{ margin: 0, padding: 0, background: 'transparent' }}>
-                        {interaction.response.css}
-                      </SyntaxHighlighter>
-                    </div>
-                  </motion.div>
-                )}
+              {/* Run in CodePen Button */}
+              {interaction.response && (interaction.response.html || interaction.response.css || interaction.response.javascript) && (
+                <motion.div variants={itemVariants} className="flex flex-wrap justify-end gap-3 pt-2">
+                  <button
+                    onClick={() => {
+                      const { html, css, javascript } = interaction.response!;
+                      const fullCode = `
+<!-- HTML -->
+${html || ''}
 
-                {revealedSections.js && interaction.response.javascript && (
-                  <motion.div ref={jsRef} initial="hidden" animate="visible" variants={itemVariants} className="bg-[#0f172a] border border-slate-800 dark:border-white/10 rounded-3xl overflow-hidden shadow-lg">
-                    <div className="flex items-center justify-between px-4 py-2 bg-slate-900 border-b border-slate-800">
-                      <span className="text-xs font-mono text-slate-400">JavaScript</span>
-                      <button onClick={() => copyToClipboard(interaction.response!.javascript, 'js')} className="text-slate-400 hover:text-white transition-colors">
-                        {copiedIndex === 'js' ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
-                      </button>
-                    </div>
-                    <div className="p-4 overflow-x-auto text-sm">
-                      <SyntaxHighlighter language="javascript" style={vscDarkPlus} customStyle={{ margin: 0, padding: 0, background: 'transparent' }}>
-                        {interaction.response.javascript}
-                      </SyntaxHighlighter>
-                    </div>
-                  </motion.div>
-                )}
+<style>
+${css || ''}
+</style>
 
-                {revealedSections.js && (
-                  <motion.div variants={itemVariants} className="flex justify-end pt-2">
-                    <button
-                      onClick={() => {
-                        const { html, css, javascript } = interaction.response!;
-                        const data = JSON.stringify({
-                          title: "VSprint Generated Code",
-                          html: html,
-                          css: css,
-                          js: javascript,
-                          editors: "111"
-                        });
-                        const form = document.createElement('form');
-                        form.action = 'https://codepen.io/pen/define';
-                        form.method = 'POST';
-                        form.target = '_blank';
-                        const input = document.createElement('input');
-                        input.type = 'hidden';
-                        input.name = 'data';
-                        input.value = data;
-                        form.appendChild(input);
-                        document.body.appendChild(form);
-                        form.submit();
-                        document.body.removeChild(form);
-                      }}
-                      className="group relative inline-flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl font-medium shadow-lg shadow-blue-500/20 transition-all duration-300 hover:scale-105 active:scale-95 overflow-hidden w-full sm:w-auto justify-center"
-                    >
-                      <Play className="w-4 h-4 fill-current" />
-                      <span>Run in CodePen</span>
-                      <ExternalLink className="w-3.5 h-3.5 opacity-60" />
-                    </button>
-                  </motion.div>
-                )}
+<script>
+${javascript || ''}
+</script>
+                      `.trim();
+                      copyToClipboard(fullCode, 'all');
+                    }}
+                    className="flex items-center gap-2 px-6 py-2.5 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-700 dark:text-slate-200 rounded-xl font-medium transition-all w-full sm:w-auto justify-center"
+                  >
+                    {copiedIndex === 'all' ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                    <span>{copiedIndex === 'all' ? 'Copied All' : 'Copy All Code'}</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      const { html, css, javascript } = interaction.response!;
+                      const data = JSON.stringify({
+                        title: "VSprint Generated Code",
+                        html: html || "",
+                        css: css || "",
+                        js: javascript || "",
+                        editors: "111"
+                      });
+                      const form = document.createElement('form');
+                      form.action = 'https://codepen.io/pen/define';
+                      form.method = 'POST';
+                      form.target = '_blank';
+                      const input = document.createElement('input');
+                      input.type = 'hidden';
+                      input.name = 'data';
+                      input.value = data;
+                      form.appendChild(input);
+                      document.body.appendChild(form);
+                      form.submit();
+                      document.body.removeChild(form);
+                    }}
+                    className="group relative inline-flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl font-medium shadow-lg shadow-blue-500/20 transition-all duration-300 hover:scale-105 active:scale-95 overflow-hidden w-full sm:w-auto justify-center"
+                  >
+                    <Play className="w-4 h-4 fill-current" />
+                    <span>Run in CodePen</span>
+                    <ExternalLink className="w-3.5 h-3.5 opacity-60" />
+                  </button>
+                </motion.div>
+              )}
               
               {/* 🧩 Teaching Sections */}
               {!interaction.response.chatMessage && (
-                <div className="space-y-6">
+                <motion.div layout className="space-y-6">
                   {revealedSections.logic && interaction.response.logicBreakdown && (
-                  <motion.div ref={logicRef} variants={itemVariants} className="bg-white/60 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-3xl p-6 shadow-sm">
+                  <motion.div layout ref={logicRef} variants={itemVariants} className="bg-white/60 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-3xl p-6 shadow-sm">
                     <div className="flex items-center gap-3 mb-3">
                       <span className="text-xl">🧠</span>
                       <h3 className="text-lg font-semibold text-sky-950 dark:text-cyan-50">How it actually works (step-by-step)</h3>
@@ -329,7 +472,7 @@ const InteractionItem = ({ interaction, isLatest }: { interaction: InteractionTy
                 )}
 
                 {revealedSections.weakPoint && interaction.response.technicalWeakPoint && (
-                  <motion.div ref={weakPointRef} variants={itemVariants} className="bg-amber-50/50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30 rounded-3xl p-6 shadow-sm">
+                  <motion.div layout ref={weakPointRef} variants={itemVariants} className="bg-amber-50/50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30 rounded-3xl p-6 shadow-sm">
                     <div className="flex items-center gap-3 mb-3">
                       <span className="text-xl">⚠️</span>
                       <h3 className="text-lg font-semibold text-amber-900 dark:text-amber-200">Watch out (common beginner mistake)</h3>
@@ -341,8 +484,8 @@ const InteractionItem = ({ interaction, isLatest }: { interaction: InteractionTy
                 )}
 
                 {revealedSections.drill && interaction.response.drill && (
-                  <>
-                    <motion.div ref={drillRef} variants={itemVariants} className="bg-emerald-50/50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-900/30 rounded-3xl p-6 shadow-sm">
+                  <motion.div layout className="space-y-6">
+                    <motion.div layout ref={drillRef} variants={itemVariants} className="bg-emerald-50/50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-900/30 rounded-3xl p-6 shadow-sm">
                       <div className="flex items-center gap-3 mb-3">
                         <span className="text-xl">⚡</span>
                         <h3 className="text-lg font-semibold text-emerald-900 dark:text-emerald-200">Try this (30 seconds)</h3>
@@ -353,6 +496,7 @@ const InteractionItem = ({ interaction, isLatest }: { interaction: InteractionTy
                     </motion.div>
                     
                     <motion.div
+                      layout
                       initial={{ opacity: 0, scale: 0.9 }}
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: 0.5, duration: 0.5 }}
@@ -361,19 +505,46 @@ const InteractionItem = ({ interaction, isLatest }: { interaction: InteractionTy
                       <CheckCircle2 className="w-5 h-5 text-emerald-500" />
                       <span className="text-emerald-700 dark:text-emerald-300 font-medium">Lesson complete! You're doing great.</span>
                     </motion.div>
-                  </>
+
+                    {interaction.response.nextSteps && interaction.response.nextSteps.length > 0 && (
+                      <motion.div 
+                        layout
+                        variants={itemVariants}
+                        className="mt-8 pt-8 border-t border-slate-100 dark:border-slate-800"
+                      >
+                        <div className="flex items-center gap-2 mb-4 text-slate-400 dark:text-slate-500">
+                          <ArrowRight className="w-4 h-4" />
+                          <span className="text-xs font-semibold uppercase tracking-wider">Next Steps</span>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          {interaction.response.nextSteps.map((step, idx) => (
+                            <button
+                              key={idx}
+                              onClick={() => onSubmit(undefined, step)}
+                              className="group flex items-center justify-between p-4 bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-2xl text-left hover:border-blue-500 dark:hover:border-blue-500 transition-all duration-300 shadow-sm hover:shadow-md"
+                            >
+                              <span className="text-sm font-medium text-slate-700 dark:text-slate-300 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                                {step}
+                              </span>
+                              <Plus className="w-4 h-4 text-slate-300 group-hover:text-blue-500 transition-colors" />
+                            </button>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </motion.div>
                 )}
-              </div>
-              )}
-            </motion.div>
-          )}
-        </div>
-      </div>
-      
-      {/* Divider */}
-      {!isLatest && <div className="w-full h-px bg-gradient-to-r from-transparent via-slate-200 dark:via-slate-800 to-transparent my-8" />}
+              </motion.div>
+            )}
+          </motion.div>
+        )}
+      </motion.div>
     </div>
-  );
+
+    {/* Divider */}
+    {!isLatest && <div className="w-full h-px bg-gradient-to-r from-transparent via-slate-200 dark:via-slate-800 to-transparent my-8" />}
+  </div>
+);
 };
 
 const getAI = () => {
@@ -388,9 +559,18 @@ const DEBUG = false;
 
 const BackgroundSystem = ({ theme }: { theme: string }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [isMobile, setIsMobile] = useState(false);
   
   const { scrollY } = useScroll();
-  const parallaxY = useTransform(scrollY, [0, 5000], [0, -300]);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -407,35 +587,35 @@ const BackgroundSystem = ({ theme }: { theme: string }) => {
       return {
         x: Math.random() * window.innerWidth,
         y: Math.random() * window.innerHeight,
-        vx: (Math.random() - 0.5) * (isLarge ? 0.1 : 0.2),
-        vy: -(Math.random() * 0.2 + (isLarge ? 0.1 : 0.2)), // Always float up slowly
+        vx: (Math.random() - 0.5) * (isLarge ? 0.05 : 0.1),
+        vy: -(Math.random() * 0.1 + (isLarge ? 0.05 : 0.1)),
         phaseX: Math.random() * Math.PI * 2,
         phaseScale: Math.random() * Math.PI * 2,
         baseScale: isLarge ? (Math.random() * 0.2 + 0.9) : (Math.random() * 0.2 + 0.8),
-        speedX: Math.random() * 0.0005 + 0.0002,
-        speedScale: Math.random() * 0.001 + 0.0005,
-        parallaxFactor: isLarge ? 0.05 : 0.1 // Large ones move slower
+        speedX: Math.random() * 0.0003 + 0.0001,
+        speedScale: Math.random() * 0.0005 + 0.0002,
+        parallaxFactor: isLarge ? 0.03 : 0.06
       };
     });
     
     const particleStates = particles.map(() => ({
       x: Math.random() * window.innerWidth,
       y: Math.random() * window.innerHeight,
-      vx: (Math.random() - 0.5) * 0.2,
-      vy: -(Math.random() * 0.3 + 0.1),
+      vx: (Math.random() - 0.5) * 0.1,
+      vy: -(Math.random() * 0.2 + 0.05),
       phase: Math.random() * Math.PI * 2,
-      parallaxFactor: Math.random() * 0.15 + 0.05
+      parallaxFactor: Math.random() * 0.1 + 0.02
     }));
 
     const emojiStates = emojis.map(() => ({
       x: Math.random() * window.innerWidth,
       y: Math.random() * window.innerHeight,
-      vx: (Math.random() - 0.5) * 0.1,
-      vy: -(Math.random() * 0.2 + 0.1),
+      vx: (Math.random() - 0.5) * 0.05,
+      vy: -(Math.random() * 0.1 + 0.05),
       phase: Math.random() * Math.PI * 2,
       rotation: Math.random() * 360,
-      rotSpeed: (Math.random() - 0.5) * 0.2,
-      parallaxFactor: 0.12
+      rotSpeed: (Math.random() - 0.5) * 0.1,
+      parallaxFactor: 0.08
     }));
 
     const render = (time: number) => {
@@ -445,20 +625,15 @@ const BackgroundSystem = ({ theme }: { theme: string }) => {
       
       jellies.forEach((jelly, i) => {
         const state = jellyStates[i];
-        
         state.x += state.vx;
         state.y += state.vy;
-        
-        const waveX = Math.sin(time * state.speedX + state.phaseX) * 60;
-        
+        const waveX = Math.sin(time * state.speedX + state.phaseX) * 40;
         if (state.y < -800) state.y = h + 800;
         if (state.x < -400) state.x = w + 400;
         if (state.x > w + 400) state.x = -400;
-        
-        const scale = state.baseScale * (1 + Math.sin(time * state.speedScale + state.phaseScale) * 0.1); // 0.9 -> 1.1
-        const rotation = Math.sin(time * state.speedX + state.phaseX) * 15;
+        const scale = state.baseScale * (1 + Math.sin(time * state.speedScale + state.phaseScale) * 0.05);
+        const rotation = Math.sin(time * state.speedX + state.phaseX) * 10;
         const scrollOffset = currentScrollY * state.parallaxFactor;
-        
         jelly.style.transform = `translate3d(${state.x + waveX}px, ${state.y + scrollOffset}px, 0) scale(${scale}) rotate(${rotation}deg)`;
       });
       
@@ -466,14 +641,11 @@ const BackgroundSystem = ({ theme }: { theme: string }) => {
         const state = particleStates[i];
         state.x += state.vx;
         state.y += state.vy;
-        
         if (state.y < -100) state.y = h + 100;
         if (state.x < -100) state.x = w + 100;
         if (state.x > w + 100) state.x = -100;
-        
-        const waveX = Math.sin(time * 0.001 + state.phase) * 20;
+        const waveX = Math.sin(time * 0.0005 + state.phase) * 15;
         const scrollOffset = currentScrollY * state.parallaxFactor;
-        
         particle.style.transform = `translate3d(${state.x + waveX}px, ${state.y + scrollOffset}px, 0)`;
       });
 
@@ -482,14 +654,11 @@ const BackgroundSystem = ({ theme }: { theme: string }) => {
         state.x += state.vx;
         state.y += state.vy;
         state.rotation += state.rotSpeed;
-        
         if (state.y < -100) state.y = h + 100;
         if (state.x < -100) state.x = w + 100;
         if (state.x > w + 100) state.x = -100;
-        
-        const waveX = Math.sin(time * 0.0005 + state.phase) * 30;
+        const waveX = Math.sin(time * 0.0003 + state.phase) * 20;
         const scrollOffset = currentScrollY * state.parallaxFactor;
-        
         emoji.style.transform = `translate3d(${state.x + waveX}px, ${state.y + scrollOffset}px, 0) rotate(${state.rotation}deg)`;
       });
       
@@ -498,7 +667,7 @@ const BackgroundSystem = ({ theme }: { theme: string }) => {
     
     animationFrameId = requestAnimationFrame(render);
     return () => cancelAnimationFrame(animationFrameId);
-  }, []);
+  }, [isMobile]);
 
   const isDark = theme === 'dark';
   const emojiList = ['💡', '🚀', '⚡', '🧠', '💻'];
@@ -506,34 +675,34 @@ const BackgroundSystem = ({ theme }: { theme: string }) => {
   return (
     <div ref={containerRef} className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
       {/* Large Background Jellies */}
-      {Array.from({ length: 4 }).map((_, i) => (
+      {Array.from({ length: isMobile ? 2 : 4 }).map((_, i) => (
         <div key={`jelly-l-${i}`} className={`bg-jelly jelly-large absolute top-0 left-0 will-change-transform ${isDark ? 'mix-blend-screen' : 'mix-blend-normal'}`} style={{ width: '600px', height: '600px', marginLeft: '-300px', marginTop: '-300px' }}>
           <div className="w-full h-full opacity-60" style={{ 
             borderRadius: '60% 40% 70% 30%',
-            filter: 'blur(100px)',
+            filter: isMobile ? 'blur(40px)' : 'blur(100px)',
             background: `linear-gradient(135deg, ${isDark ? 'rgba(6,182,212,0.4)' : 'rgba(6,182,212,0.6)'} 0%, ${isDark ? 'rgba(59,130,246,0.3)' : 'rgba(125,211,252,0.5)'} 50%, ${isDark ? 'rgba(139,92,246,0.3)' : 'rgba(196,181,253,0.5)'} 100%)` 
           }} />
         </div>
       ))}
       
       {/* Medium Mid-layer Jellies */}
-      {Array.from({ length: 6 }).map((_, i) => (
+      {Array.from({ length: isMobile ? 3 : 6 }).map((_, i) => (
         <div key={`jelly-m-${i}`} className={`bg-jelly absolute top-0 left-0 will-change-transform ${isDark ? 'mix-blend-screen' : 'mix-blend-normal'}`} style={{ width: '400px', height: '400px', marginLeft: '-200px', marginTop: '-200px' }}>
           <div className="w-full h-full opacity-70" style={{ 
             borderRadius: '40% 60% 30% 70%',
-            filter: 'blur(80px)',
+            filter: isMobile ? 'blur(30px)' : 'blur(80px)',
             background: `linear-gradient(135deg, ${isDark ? 'rgba(59,130,246,0.5)' : 'rgba(56,189,248,0.5)'} 0%, ${isDark ? 'rgba(168,85,247,0.4)' : 'rgba(167,139,250,0.4)'} 100%)` 
           }} />
         </div>
       ))}
 
       {/* Front layer particles */}
-      {Array.from({ length: 20 }).map((_, i) => (
+      {Array.from({ length: isMobile ? 10 : 20 }).map((_, i) => (
         <div key={`particle-${i}`} className={`bg-particle absolute top-0 left-0 rounded-full will-change-transform ${isDark ? 'mix-blend-screen' : 'mix-blend-normal'}`} style={{ width: `${Math.random() * 6 + 2}px`, height: `${Math.random() * 6 + 2}px`, background: isDark ? 'rgba(168,85,247,0.6)' : 'rgba(168,85,247,0.4)', filter: 'blur(1px)' }} />
       ))}
 
       {/* Floating Emojis */}
-      {emojiList.map((emoji, i) => (
+      {emojiList.slice(0, isMobile ? 3 : 5).map((emoji, i) => (
         <div key={`emoji-${i}`} className="bg-emoji absolute top-0 left-0 text-4xl will-change-transform opacity-10 dark:opacity-20">
           {emoji}
         </div>
@@ -641,7 +810,7 @@ const CinematicIntro = ({ onComplete }: { onComplete: () => void }) => {
       
       {/* Floating Cinematic Particles */}
       <div className="absolute inset-0 pointer-events-none">
-        {Array.from({ length: 25 }).map((_, i) => (
+        {Array.from({ length: isMobile ? 10 : 25 }).map((_, i) => (
           <motion.div
             key={i}
             initial={{ 
@@ -753,7 +922,7 @@ const CinematicIntro = ({ onComplete }: { onComplete: () => void }) => {
 };
 
 import { supabase } from './supabaseClient';
-import { SignIn } from './components/SignIn';
+import { LogIn } from './components/LogIn';
 import { SignUp } from './components/SignUp';
 import { ProfileAvatar } from './components/ProfileAvatar';
 import { getInteractions, createInteraction, updateInteraction, deleteInteraction } from './services/interactionService';
@@ -784,7 +953,6 @@ export default function App() {
         setAuthView('signin');
       } else {
         setUser(session.user);
-        getInteractions(session.user.id).then(setInteractions);
         fetchTotalActivity(session.user.id);
       }
     });
@@ -800,7 +968,6 @@ export default function App() {
       } else {
         setAuthView('home');
         setUser(session.user);
-        getInteractions(session.user.id).then(setInteractions);
         fetchTotalActivity(session.user.id);
       }
     });
@@ -840,8 +1007,69 @@ export default function App() {
   });
   const [prompt, setPrompt] = useState('');
   const [interactions, setInteractions] = useState<InteractionType[]>([]);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [demoMode, setDemoMode] = useState(false);
   const [showPlanLimit, setShowPlanLimit] = useState(false);
+  const [bonusQuota, setBonusQuota] = useState<number>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('vprint_bonus_quota');
+      return saved ? parseInt(saved, 10) : 0;
+    }
+    return 0;
+  });
+  const [usedCodes, setUsedCodes] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('vprint_used_codes');
+      return saved ? JSON.parse(saved) : [];
+    }
+    return [];
+  });
+  const [redeemCodeInput, setRedeemCodeInput] = useState('');
+  const [redeemError, setRedeemError] = useState('');
+  const [redeemSuccess, setRedeemSuccess] = useState('');
+
+  const VALID_CODES: Record<string, number> = {
+    'VS-PR-2026-77': 50,
+    'DEMO-ACTIVE-99': 20,
+    'TEACHER-GIFT-26': 100,
+    'BETA-UNLOCK-55': 10,
+    'VSPRINT-SECRET-X': 200
+  };
+
+  const handleRedeem = () => {
+    setRedeemError('');
+    setRedeemSuccess('');
+    const code = redeemCodeInput.trim().toUpperCase();
+    
+    if (!code) {
+      setRedeemError('Please enter a code');
+      return;
+    }
+
+    if (usedCodes.includes(code)) {
+      setRedeemError('This code has already been used');
+      return;
+    }
+
+    if (VALID_CODES[code]) {
+      const bonus = VALID_CODES[code];
+      const newQuota = bonusQuota + bonus;
+      setBonusQuota(newQuota);
+      setUsedCodes(prev => [...prev, code]);
+      localStorage.setItem('vprint_bonus_quota', newQuota.toString());
+      localStorage.setItem('vprint_used_codes', JSON.stringify([...usedCodes, code]));
+      setRedeemSuccess(`Successfully unlocked ${bonus} more answers!`);
+      setRedeemCodeInput('');
+      setTimeout(() => {
+        setShowPlanLimit(false);
+        setRedeemSuccess('');
+      }, 2000);
+    } else {
+      setRedeemError('Invalid code. Please check and try again.');
+    }
+  };
   const toolRef = useRef<HTMLDivElement>(null);
   const outputRef = useRef<HTMLDivElement>(null);
 
@@ -857,9 +1085,9 @@ export default function App() {
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const isAnyLoading = interactions.some(i => i.loading);
   const placeholders = [
-    "Explain closures in JavaScript",
-    "Fix my React useEffect bug",
-    "What is OOP in simple terms?"
+    "Generate Component: A modern login form",
+    "Fix Code: My React useEffect bug",
+    "Explain closures in JavaScript"
   ];
 
   useEffect(() => {
@@ -886,6 +1114,13 @@ export default function App() {
     }
     localStorage.setItem('theme', theme);
   }, [theme]);
+
+  const suggestions = [
+    { icon: <Code2 className="w-5 h-5 text-blue-500" />, text: "Generate Component: Modern Login" },
+    { icon: <Terminal className="w-5 h-5 text-indigo-500" />, text: "Fix Code: React useEffect bug" },
+    { icon: <BrainCircuit className="w-5 h-5 text-purple-500" />, text: "Explain closures in JavaScript" },
+    { icon: <Target className="w-5 h-5 text-cyan-500" />, text: "How do I center a div?" }
+  ];
 
   useEffect(() => {
     const updateGlow = () => {
@@ -962,151 +1197,76 @@ export default function App() {
         config: {
           systemInstruction: `
 ==================================
-ROLE
+ROLE: THE VSprint COACH
 ==================================
-You are VSprint AI — an expert coding mentor with years of real-world experience.
+You are VSprint AI — a world-class coding mentor. You don't just provide code; you build developers. 
 
-You teach beginners how to code in a simple, clear, and practical way.
-You think like a senior developer but explain like a friendly teacher.
-
-----------------------------------
-CONTEXT
-----------------------------------
-The user is a beginner or early-stage developer.
-
-Your goal:
-- Help them understand concepts
-- Help them build small projects
-- Guide them step-by-step
-- Make learning feel simple, not overwhelming
+Your personality:
+- Expert yet accessible (Senior Developer meets Friendly Teacher).
+- Encouraging but precise.
+- Obsessed with the "Why" behind the "How".
 
 ----------------------------------
-INTENT DETECTION
+COACHING PHILOSOPHY
 ----------------------------------
-
-1. If user greets or asks general question:
-Return:
-{
-  "type": "chat",
-  "message": "Hey, I'm VSprint AI 👋\\n\\nI can help you build projects, explain concepts, and improve your code step by step.\\n\\nWhat would you like to build or learn today?"
-}
-
-2. If user asks about coding, building, fixing, or explaining:
-Return STRICT JSON:
-
-{
-  "type": "project",
-  "explanation": "Explain clearly in 2–4 sentences. Include what we are building, how it works simply, and why it matters.",
-  "code": {
-    "html": "Clean HTML structure only",
-    "css": "Modern responsive CSS (mobile-first, spacing, flex/grid, rounded UI)",
-    "js": "Clear JavaScript logic with event handling if needed"
-  },
-  "learning": {
-    "logic": [
-      "Step 1 clear explanation",
-      "Step 2 clear explanation",
-      "Step 3 clear explanation"
-    ],
-    "mistake": "One common beginner mistake explained in 2–3 sentences",
-    "practiceTask": "A small hands-on task in 2–3 sentences"
-  }
-}
+1. **Detect Intent & Level**: 
+   - If the prompt is simple ("How to center a div"), explain like a patient teacher.
+   - If the prompt is technical ("Explain React hooks"), speak like a senior dev explaining to a junior.
+2. **The "Why" First**: Before showing code, explain the logic. Why use Flexbox over Grid here? Why use a state instead of a variable?
+3. **Clean Code**: Your code must be a gold standard for the user to follow.
 
 ----------------------------------
-COMMAND
+RESPONSE MODES
 ----------------------------------
 
-You MUST:
-- Act like an experienced developer + mentor
-- Give clear, structured answers
-- Always guide the user toward understanding
+1. **GREETINGS / CHAT**:
+   If the user greets you or asks non-coding questions:
+   {
+     "type": "chat",
+     "message": "Hey! I'm your VSprint Coach. I'm here to help you master coding through building. What's on your mind? We can build a project, debug some code, or I can explain a tricky concept."
+   }
+
+2. **CODING / BUILDING / EXPLAINING**:
+   Return STRICT JSON:
+   {
+     "type": "project",
+     "explanation": "Start with a 1-sentence 'Big Picture' overview. Then, 2-3 sentences explaining the 'Why' (the architectural or logical reason for this approach).",
+     "code": {
+       "html": "Semantic, accessible HTML5 structure. DO NOT include <style> or <script> tags here. ONLY the body content.",
+       "css": "Modern, mobile-first CSS. DO NOT include <style> tags. ONLY the raw CSS rules.",
+       "js": "Clean, modern JavaScript (ES6+). DO NOT include <script> tags. ONLY the raw JavaScript code."
+     },
+     "learning": {
+       "logic": [
+         "Step 1: The logical starting point (e.g., 'First, we define our state to track user input...')",
+         "Step 2: The core action (e.g., 'Next, we listen for the click event to trigger the calculation...')",
+         "Step 3: The result (e.g., 'Finally, we update the DOM to show the user their result instantly.')"
+       ],
+       "mistake": "A 'Senior Developer' insight. What is a common pitfall here? (e.g., forgetting to prevent default form behavior, or memory leaks with listeners).",
+       "practiceTask": "A specific, actionable challenge that builds on this code. (e.g., 'Now try adding a reset button that clears the input and the result. This will help you understand state resetting.')",
+       "nextSteps": [
+         "A short, catchy follow-up question 1 (e.g., 'How to add a dark mode?')",
+         "A short, catchy follow-up question 2 (e.g., 'Can we add an animation?')",
+         "A short, catchy follow-up question 3 (e.g., 'How to save this to local storage?')"
+       ]
+     }
+   }
 
 ----------------------------------
-INSTRUCTIONS
+STRICT CONSTRAINTS
 ----------------------------------
-
-- Use simple English
-- Be friendly and encouraging
-- Avoid complex jargon
-- Do NOT be robotic
-- Do NOT be too short
-- Keep answers balanced (not too long, not too short)
-
-----------------------------------
-FORMATTING RULES
-----------------------------------
-
-- Always return valid JSON for project responses
-- Never include markdown
-- Never include text outside JSON
-- Ensure all fields are filled
-- "logic" must always be an array
-
-----------------------------------
-BOUNDARIES (STRICT)
-----------------------------------
-
-- NEVER use or mention:
-  - "30-Second Drill"
-  - "Drill"
-  - "Challenge"
-
-- ONLY use:
-  - "practiceTask"
-
-- NEVER leave fields empty
-- NEVER break JSON format
-
-----------------------------------
-UI + UX QUALITY RULES
-----------------------------------
-
-- UI must look like a real app (not basic HTML)
-- Use:
-  - padding
-  - spacing
-  - border-radius
-  - modern layout
-- Center content with max-width
-- Avoid ugly default styles
-
-----------------------------------
-RESPONSIVE DESIGN RULES
-----------------------------------
-
-- Use mobile-first CSS
-- Use flexbox or grid
-- Ensure layout works on:
-  - mobile
-  - tablet
-  - desktop
-
-----------------------------------
-CONTENT QUALITY RULES
-----------------------------------
-
-- Avoid 1-line answers
-- Make content feel complete inside UI cards
-- Explanation: 2–4 sentences
-- Mistake: 2–3 sentences
-- Practice: 2–3 sentences
-
-----------------------------------
-EXAMPLES (REFERENCE STYLE)
-----------------------------------
-
-Good practiceTask:
-"Try adding a password validation that checks if the password is at least 8 characters long. Then show an error message if it's too short. This will help you understand how to handle user input and validation."
-
-Bad practiceTask:
-"Add validation." ❌ (too short)
+- NEVER include markdown outside the JSON.
+- NEVER leave fields empty.
+- NEVER use the words 'Drill' or 'Challenge'—only 'practiceTask'.
+- The 'logic' field MUST be an array of strings.
+- The 'nextSteps' field MUST be an array of exactly 3 strings.
+- Ensure the UI generated in the code fields is visually stunning (use gradients, shadows, and rounded corners).
+- If the user asks for something impossible or dangerous, politely explain why as a coach would.
 
 ----------------------------------
 FINAL RULE
 ----------------------------------
-
-Return ONLY JSON.
+Return ONLY the JSON object. No preamble. No postscript.
 `,
         },
       });
@@ -1133,6 +1293,7 @@ Return ONLY JSON.
         logicBreakdown: parsedData.learning.logic.join('\n'),
         technicalWeakPoint: parsedData.learning.mistake,
         drill: parsedData.learning.practiceTask,
+        nextSteps: parsedData.learning.nextSteps,
       };
 
       console.log("Parsed AI Data:", safeResponse);
@@ -1167,13 +1328,80 @@ Return ONLY JSON.
     }
   };
 
+  useEffect(() => {
+    if (user) {
+      fetchConversations();
+    } else {
+      setConversations([]);
+      setInteractions([]);
+      setCurrentConversationId(null);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (user && currentConversationId) {
+      fetchInteractions(currentConversationId);
+    } else {
+      setInteractions([]);
+    }
+  }, [user, currentConversationId]);
+
+  const fetchConversations = async () => {
+    if (!user) return;
+    try {
+      const { data, error } = await supabase
+        .from('interactions')
+        .select('conversation_id, prompt, created_at')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: true });
+      
+      if (error) throw error;
+
+      // Group by conversation_id and take the first prompt as title
+      const uniqueConversations: Conversation[] = [];
+      const seenIds = new Set();
+      
+      data.forEach(item => {
+        if (!seenIds.has(item.conversation_id)) {
+          seenIds.add(item.conversation_id);
+          uniqueConversations.push({
+            id: item.conversation_id,
+            title: item.prompt.length > 30 ? item.prompt.substring(0, 30) + '...' : item.prompt,
+            created_at: item.created_at
+          });
+        }
+      });
+
+      setConversations(uniqueConversations.reverse());
+    } catch (err) {
+      console.error('Error fetching conversations:', err);
+    }
+  };
+
+  const fetchInteractions = async (convId: string) => {
+    if (!user) return;
+    try {
+      const data = await getInteractions(user.id, convId);
+      setInteractions(data.map(i => ({ ...i, loading: false, statusMessage: null })));
+    } catch (err) {
+      console.error('Error fetching interactions:', err);
+    }
+  };
+
+  const startNewChat = () => {
+    setCurrentConversationId(null);
+    setInteractions([]);
+    setPrompt('');
+    setIsSidebarOpen(false);
+    scrollToTool();
+  };
+
   const handleSubmit = async (e?: React.FormEvent, promptOverride?: string) => {
     if (e) e.preventDefault();
     const currentPrompt = promptOverride || prompt;
     if (!currentPrompt.trim() || !user) return;
 
-    // Plan Limit Check (Free tier: 3 generations)
-    // We fetch count again to be absolutely sure
+    // Plan Limit Check (Free tier: 4 + bonusQuota generations)
     try {
       const { count, error } = await supabase
         .from('interactions')
@@ -1182,23 +1410,28 @@ Return ONLY JSON.
       
       if (error) throw error;
       
-      if (count !== null && count >= 3) {
+      if (count !== null && count >= (4 + bonusQuota)) {
         setShowPlanLimit(true);
         return;
       }
     } catch (err) {
       console.error('Error checking plan limit:', err);
-      // If error, we still check local state as fallback
-      if (totalActivity >= 3) {
+      if (totalActivity >= (4 + bonusQuota)) {
         setShowPlanLimit(true);
         return;
       }
     }
 
-    const newInteraction = await createInteraction(user.id, currentPrompt.trim());
+    const convId = currentConversationId || crypto.randomUUID();
+    const newInteraction = await createInteraction(user.id, convId, currentPrompt.trim());
 
-    setInteractions(prev => [...prev, newInteraction]);
-    setPrompt(''); // Clear prompt immediately
+    if (!currentConversationId) {
+      setCurrentConversationId(convId);
+      fetchConversations(); // Refresh sidebar
+    }
+
+    setInteractions(prev => [...prev, { ...newInteraction, loading: true, statusMessage: 'Analyzing...' }]);
+    setPrompt(''); 
 
     const lowerPrompt = currentPrompt.toLowerCase();
     const demoKey = Object.keys(DEMO_RESPONSES).find(key => lowerPrompt.includes(key));
@@ -1295,12 +1528,35 @@ Return ONLY JSON.
                     </div>
                     
                     <h2 className="text-3xl font-bold text-sky-950 dark:text-cyan-50 mb-4 tracking-tight">
-                      Free vibe limit reached.
+                      {totalActivity >= (4 + bonusQuota) ? "Free Vibe limit reached." : "Redeem Bonus Quota"}
                     </h2>
                     
                     <p className="text-lg text-sky-800 dark:text-cyan-200/80 mb-8 leading-relaxed">
-                      Upgrade to Pro for unlimited high-density logic and debugging.
+                      {totalActivity >= (4 + bonusQuota) 
+                        ? "Unlock unlimited 30-Second Practice and Senior Coach insights."
+                        : "Enter a presentation or bonus code to unlock more AI generations."}
                     </p>
+
+                    <div className="mb-8 p-6 bg-slate-50 dark:bg-white/5 rounded-3xl border border-slate-200 dark:border-white/10">
+                      <p className="text-sm font-medium text-slate-500 dark:text-zinc-400 mb-4">Have a presentation code?</p>
+                      <div className="flex gap-2">
+                        <input 
+                          type="text"
+                          value={redeemCodeInput}
+                          onChange={(e) => setRedeemCodeInput(e.target.value)}
+                          placeholder="Enter code"
+                          className="flex-1 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500/50"
+                        />
+                        <button 
+                          onClick={handleRedeem}
+                          className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-bold transition-all"
+                        >
+                          Redeem
+                        </button>
+                      </div>
+                      {redeemError && <p className="mt-2 text-xs text-red-500 font-medium">{redeemError}</p>}
+                      {redeemSuccess && <p className="mt-2 text-xs text-green-500 font-medium">{redeemSuccess}</p>}
+                    </div>
 
                     <div className="space-y-3">
                       <button 
@@ -1356,20 +1612,145 @@ Return ONLY JSON.
 
           <div className="relative z-10 flex flex-col min-h-screen">
             
+            {/* Sidebar */}
+            <AnimatePresence>
+              {isSidebarOpen && (
+                <>
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    onClick={() => setIsSidebarOpen(false)}
+                    className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[60] lg:hidden"
+                  />
+                  <motion.aside
+                    initial={{ x: -300 }}
+                    animate={{ x: 0 }}
+                    exit={{ x: -300 }}
+                    className="fixed top-0 left-0 h-full w-[280px] bg-white/80 dark:bg-zinc-900/90 backdrop-blur-2xl border-r border-slate-200 dark:border-white/10 z-[70] shadow-2xl flex flex-col"
+                  >
+                    <div className="p-6 border-b border-slate-200 dark:border-white/10 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <VSprintLogo className="w-8 h-8" />
+                        <span className="font-bold text-lg tracking-tight dark:text-white">History</span>
+                      </div>
+                      <button onClick={() => setIsSidebarOpen(false)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/5 text-slate-500 dark:text-slate-400">
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+
+                    <div className="p-4">
+                      <button
+                        onClick={startNewChat}
+                        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold transition-all shadow-lg shadow-blue-500/20"
+                      >
+                        <Plus className="w-5 h-5" />
+                        New Chat
+                      </button>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
+                      {conversations.length === 0 ? (
+                        <div className="text-center py-10 text-slate-400 dark:text-zinc-500 text-sm">
+                          No history yet. Start a new chat!
+                        </div>
+                      ) : (
+                        conversations.map((conv) => (
+                          <button
+                            key={conv.id}
+                            onClick={() => {
+                              setCurrentConversationId(conv.id);
+                              setIsSidebarOpen(false);
+                              scrollToTool();
+                            }}
+                            className={`w-full text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 group ${
+                              currentConversationId === conv.id
+                                ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-500/20'
+                                : 'hover:bg-slate-100 dark:hover:bg-white/5 text-slate-600 dark:text-slate-400 border border-transparent'
+                            }`}
+                          >
+                            <MessageSquare className={`w-4 h-4 ${currentConversationId === conv.id ? 'text-blue-500' : 'text-slate-400 group-hover:text-blue-400'}`} />
+                            <span className="truncate text-sm font-medium">{conv.title}</span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+
+                    <div className="p-6 border-t border-slate-200 dark:border-white/10 space-y-4">
+                      <button 
+                        onClick={() => {
+                          setShowPlanLimit(true);
+                          setIsSidebarOpen(false);
+                        }}
+                        className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600/10 to-indigo-600/10 hover:from-blue-600/20 hover:to-indigo-600/20 text-blue-600 dark:text-blue-400 border border-blue-500/20 font-semibold transition-all flex items-center justify-center gap-2 group"
+                      >
+                        <Ticket className="w-4 h-4 group-hover:rotate-12 transition-transform" />
+                        Redeem Code
+                      </button>
+                      <div className="flex items-center gap-3 text-sm text-slate-500 dark:text-zinc-400">
+                        <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                        <span>{user?.email}</span>
+                      </div>
+                    </div>
+                  </motion.aside>
+                </>
+              )}
+            </AnimatePresence>
+
             {/* Header */}
-            <header className="flex justify-between items-center max-w-6xl mx-auto w-full p-6 md:p-8">
-              <div className="flex items-center gap-3">
-                <VSprintLogo className="w-10 h-10" />
-                <span className="font-bold text-xl tracking-tight">
-                  <span className="text-sky-500 dark:text-sky-400">V</span>
-                  <span className="bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-400">Sprint</span>
-                </span>
+            <header className="flex justify-between items-center max-w-6xl mx-auto w-full p-6 md:p-8 relative z-50">
+              <div className="flex items-center gap-4">
+                <button 
+                  onClick={() => setIsSidebarOpen(true)}
+                  className="p-2.5 rounded-xl bg-white/50 dark:bg-white/5 border border-slate-200 dark:border-white/10 backdrop-blur-md hover:bg-white/80 dark:hover:bg-white/10 transition-all text-sky-800 dark:text-cyan-100 shadow-sm"
+                  aria-label="Open History"
+                >
+                  <History className="w-5 h-5" />
+                </button>
+                <div className="flex items-center gap-3">
+                  <VSprintLogo className="w-10 h-10" />
+                  <span className="font-bold text-xl tracking-tight">
+                    <span className="text-sky-500 dark:text-sky-400">V</span>
+                    <span className="bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-400">Sprint</span>
+                  </span>
+                </div>
               </div>
               <div className="flex items-center gap-4">
                 {user ? (
-                  <ProfileAvatar user={user} />
+                  <div className="flex items-center gap-4">
+                    <button 
+                      onClick={() => setShowPlanLimit(true)}
+                      className="hidden lg:flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/20 font-medium transition-all shadow-sm"
+                    >
+                      <Ticket className="w-4 h-4" />
+                      Redeem
+                    </button>
+                    <button 
+                      onClick={startNewChat}
+                      className="hidden md:flex items-center gap-2 px-4 py-2 rounded-xl bg-white/50 dark:bg-white/5 border border-slate-200 dark:border-white/10 backdrop-blur-md hover:bg-white/80 dark:hover:bg-white/10 transition-all text-sky-800 dark:text-cyan-100 shadow-sm font-medium"
+                    >
+                      <Plus className="w-4 h-4" />
+                      New Chat
+                    </button>
+                    <ProfileAvatar user={user} />
+                    <button 
+                      onClick={() => supabase.auth.signOut()} 
+                      className="px-4 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 font-medium transition-all flex items-center gap-2"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      <span className="hidden sm:inline">Log Out</span>
+                    </button>
+                  </div>
                 ) : (
-                  <button onClick={() => setAuthView('signin')} className="text-sky-800 dark:text-cyan-100 font-medium hover:text-blue-500 transition-colors">Sign In</button>
+                  <div className="flex items-center gap-4">
+                    <button onClick={() => setAuthView('signin')} className="text-sky-800 dark:text-cyan-100 font-medium hover:text-blue-500 transition-colors">Log In</button>
+                    <button 
+                      onClick={() => setAuthView('signup')} 
+                      className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-medium transition-all shadow-lg shadow-blue-500/25"
+                    >
+                      Sign Up
+                    </button>
+                  </div>
                 )}
                 <button
                   onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
@@ -1384,7 +1765,7 @@ Return ONLY JSON.
             <main className="flex-1">
               {authView === 'signin' ? (
                 <div className="flex items-center justify-center min-h-[80vh]">
-                  <SignIn onSwitch={() => setAuthView('signup')} />
+                  <LogIn onSwitch={() => setAuthView('signup')} />
                 </div>
               ) : authView === 'signup' ? (
                 <div className="flex items-center justify-center min-h-[80vh]">
@@ -1714,7 +2095,7 @@ Return ONLY JSON.
           )}
 
           {/* AI Tool Section */}
-          <section ref={toolRef} className="py-48 px-4 sm:px-6 md:px-10 relative">
+          <section ref={toolRef} className="py-24 md:py-48 px-4 sm:px-6 md:px-10 relative">
             <motion.div 
               initial="hidden"
               whileInView="visible"
@@ -1728,7 +2109,7 @@ Return ONLY JSON.
 
             {/* Input Section */}
             <div className="max-w-3xl mx-auto w-full mb-12">
-              <form onSubmit={handleSubmit} className={`relative group transition-opacity duration-500 ${isAnyLoading ? 'opacity-60' : 'opacity-100'}`}>
+              <form onSubmit={handleSubmit} className={`relative group transition-opacity duration-500 ${(isAnyLoading || totalActivity >= (4 + bonusQuota)) ? 'opacity-60' : 'opacity-100'}`}>
                 <div className={`absolute -inset-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 rounded-[32px] blur transition duration-500 ${prompt ? 'opacity-30' : 'opacity-20 animate-pulse group-hover:opacity-30'}`}></div>
                 <div className="relative bg-white/80 dark:bg-zinc-900/60 backdrop-blur-2xl border border-slate-200/50 dark:border-white/10 rounded-[32px] p-2 shadow-xl shadow-slate-200/50 dark:shadow-black/50 transition-all duration-300 focus-within:ring-2 focus-within:ring-indigo-500/50 focus-within:bg-white dark:focus-within:bg-zinc-900/80">
                   <div className="relative flex items-end gap-2">
@@ -1739,25 +2120,38 @@ Return ONLY JSON.
                         e.target.style.height = 'auto';
                         e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
                       }}
-                      placeholder={placeholders[placeholderIndex]}
-                      className="w-full bg-transparent text-sky-950 dark:text-cyan-50 placeholder:text-slate-400 dark:placeholder:text-zinc-500 resize-none outline-none px-6 py-4 min-h-[60px] max-h-[200px] transition-all duration-500"
+                      disabled={totalActivity >= (4 + bonusQuota)}
+                      placeholder={totalActivity >= (4 + bonusQuota) ? "Free Vibe limit reached. Upgrade to Pro for unlimited high-density logic." : placeholders[placeholderIndex]}
+                      className="w-full bg-transparent text-sky-950 dark:text-cyan-50 placeholder:text-slate-400 dark:placeholder:text-zinc-500 resize-none outline-none px-6 py-4 min-h-[60px] max-h-[200px] transition-all duration-500 disabled:cursor-not-allowed"
                       rows={1}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && !e.shiftKey) {
                           e.preventDefault();
-                          handleSubmit(e);
+                          if (totalActivity < (4 + bonusQuota)) handleSubmit(e);
+                          else setShowPlanLimit(true);
                         }
                       }}
                     />
                     <button
                       type="submit"
-                      disabled={isAnyLoading || !prompt.trim()}
+                      disabled={isAnyLoading || !prompt.trim() || totalActivity >= (4 + bonusQuota)}
+                      onClick={(e) => {
+                        if (totalActivity >= (4 + bonusQuota)) {
+                          e.preventDefault();
+                          setShowPlanLimit(true);
+                        }
+                      }}
                       className="mb-2 mr-2 p-3 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-lg shadow-indigo-500/25 disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-105 active:scale-95 flex-shrink-0"
                     >
                       {isAnyLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ArrowRight className="w-5 h-5" />}
                     </button>
                   </div>
                 </div>
+                {totalActivity >= (4 + bonusQuota) && (
+                  <p className="mt-4 text-sm font-medium text-blue-600 dark:text-blue-400 animate-pulse">
+                    Free Vibe limit reached. Upgrade to Pro for unlimited high-density logic.
+                  </p>
+                )}
               </form>
             </div>
 
@@ -1778,6 +2172,7 @@ Return ONLY JSON.
                   key={interaction.id}
                   interaction={interaction}
                   isLatest={index === interactions.length - 1}
+                  onSubmit={handleSubmit}
                 />
               ))}
 
@@ -1797,19 +2192,19 @@ Return ONLY JSON.
                         How can I help you code today?
                       </h2>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-2xl mt-4">
-                        {[
-                          { icon: <Code2 className="w-5 h-5 text-blue-500" />, text: "Explain closures in JavaScript" },
-                          { icon: <Terminal className="w-5 h-5 text-indigo-500" />, text: "Fix my React useEffect bug" },
-                          { icon: <BrainCircuit className="w-5 h-5 text-purple-500" />, text: "What is OOP in simple terms?" },
-                          { icon: <Target className="w-5 h-5 text-cyan-500" />, text: "How do I center a div?" }
-                        ].map((suggestion, idx) => (
+                        {suggestions.map((suggestion, idx) => (
                           <button
                             key={idx}
+                            disabled={totalActivity >= (4 + bonusQuota)}
                             onClick={() => {
+                              if (totalActivity >= (4 + bonusQuota)) {
+                                setShowPlanLimit(true);
+                                return;
+                              }
                               setPrompt(suggestion.text);
                               handleSubmit(undefined, suggestion.text);
                             }}
-                            className="flex items-center gap-4 px-5 py-4 text-sm text-slate-600 dark:text-slate-300 bg-white/60 dark:bg-slate-800/40 hover:bg-white dark:hover:bg-slate-800/80 border border-slate-200/50 dark:border-slate-700/50 rounded-2xl transition-all duration-300 shadow-sm hover:shadow-md hover:-translate-y-1 text-left group"
+                            className="flex items-center gap-4 px-5 py-4 text-sm text-slate-600 dark:text-slate-300 bg-white/60 dark:bg-slate-800/40 hover:bg-white dark:hover:bg-slate-800/80 border border-slate-200/50 dark:border-slate-700/50 rounded-2xl transition-all duration-300 shadow-sm hover:shadow-md hover:-translate-y-1 text-left group disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
                           >
                             <div className="p-2 bg-slate-100 dark:bg-slate-900 rounded-lg group-hover:scale-110 transition-transform">
                               {suggestion.icon}

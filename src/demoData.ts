@@ -35,7 +35,8 @@ function Counter() {
 ReactDOM.render(React.createElement(Counter), document.getElementById('root'));`,
     logicBreakdown: "Step 1 — State Management\nWe use useState to create a count variable.\nThis tells React to watch this number and update the screen whenever it changes.\n\nStep 2 — User Interaction\nThe button has an onClick event that runs setCount.\nThis is how we tell React the user did something and the data needs to update.\n\nStep 3 — Rendering\nReact automatically re-draws the UI with the new number.\nYou don't have to manually change the text in the paragraph!",
     technicalWeakPoint: "A lot of beginners try to change the count directly like count = count + 1.\n\nWhat happens?\n→ The number changes in memory, but the screen stays the same.\n\nWhy?\n→ React only knows to re-draw when you use the setCount function.\n\nFix:\n→ Always use the setter function (setCount) to update your state.",
-    drill: "Change the initial count from 0 to 10.\n\nWhat happens when you click the button now?\n\nDoes it start from 10 or 0?"
+    drill: "Change the initial count from 0 to 10.\n\nWhat happens when you click the button now?\n\nDoes it start from 10 or 0?",
+    nextSteps: ["How to add a reset button?", "What is useEffect?", "How to use props?"]
   },
   "flexbox": {
     explanation: "Think of Flexbox like a row of seats in a movie theater. You can tell the seats to spread out, bunch up in the middle, or align perfectly to the left or right.\n\nIt's the easiest way to make things sit exactly where you want them.",
@@ -73,6 +74,7 @@ Step 3 — Vertical Alignment
 align-items: center keeps everything perfectly centered from top to bottom.
 This is usually the hardest thing to do without Flexbox!`,
     technicalWeakPoint: "A lot of beginners forget that justify-content depends on the flex-direction.\n\nWhat happens?\n→ You try to center things horizontally but they move vertically instead.\n\nWhy?\n→ If you set flex-direction: column, the main axis flips.\n\nFix:\n→ Remember that justify-content always follows the main axis of your container.",
-    drill: "Change justify-content: space-around to justify-content: center.\n\nThen try justify-content: space-between.\n\nWhich one looks better for a navigation bar?"
+    drill: "Change justify-content: space-around to justify-content: center.\n\nThen try justify-content: space-between.\n\nWhich one looks better for a navigation bar?",
+    nextSteps: ["How to use CSS Grid?", "What is flex-wrap?", "How to center a div?"]
   }
 };

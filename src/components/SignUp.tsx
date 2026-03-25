@@ -84,7 +84,7 @@ export const SignUp = ({ onSwitch }: { onSwitch: () => void }) => {
         </button>
       </form>
       <p className="mt-6 text-center text-slate-500 dark:text-slate-400">
-        Already have an account? <button onClick={onSwitch} className="text-blue-500 font-semibold">Sign In</button>
+        Already have an account? <button onClick={onSwitch} className="text-blue-500 font-semibold">Log In</button>
       </p>
     </motion.div>
   );
