@@ -7,13 +7,14 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 interface AIResponse {
-  explanation: string;
-  html: string;
-  css: string;
-  javascript: string;
-  logicBreakdown: string;
-  technicalWeakPoint: string;
-  drill: string;
+  explanation?: string;
+  html?: string;
+  css?: string;
+  javascript?: string;
+  logicBreakdown?: string;
+  technicalWeakPoint?: string;
+  drill?: string;
+  chatMessage?: string;
 }
 
 export interface InteractionType {
@@ -203,35 +204,47 @@ const InteractionItem = ({ interaction, isLatest }: { interaction: InteractionTy
               }}
               className="space-y-6 w-full"
             >
-              {/* 💡 Explanation */}
-              <motion.div variants={itemVariants} className="bg-blue-50/80 dark:bg-blue-900/10 backdrop-blur-xl border border-blue-100/50 dark:border-blue-800/20 rounded-3xl rounded-tl-sm p-6 sm:p-7 shadow-[0_10px_30px_rgba(0,0,0,0.08)] hover:scale-[1.01] transition-all duration-300">
-                <div className="flex items-center gap-3 mb-3">
-                  <span className="text-2xl">🧠</span>
-                  <h2 className="text-xl font-semibold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400">Explanation</h2>
-                </div>
-                <p className="text-slate-700 dark:text-slate-300 leading-relaxed text-base">
-                  {displayedExplanation}
-                  {isTyping && <span className="inline-block w-1.5 h-4 ml-1 bg-slate-400 animate-pulse align-middle" />}
-                </p>
-              </motion.div>
-
-              {/* 💻 Code Sections */}
-              <div className="space-y-4">
-                {revealedSections.html && interaction.response.html && (
-                  <motion.div ref={htmlRef} initial="hidden" animate="visible" variants={itemVariants} className="bg-[#0f172a] border border-slate-800 dark:border-white/10 rounded-3xl overflow-hidden shadow-lg">
-                    <div className="flex items-center justify-between px-4 py-2 bg-slate-900 border-b border-slate-800">
-                      <span className="text-xs font-mono text-slate-400">HTML</span>
-                      <button onClick={() => copyToClipboard(interaction.response!.html, 'html')} className="text-slate-400 hover:text-white transition-colors">
-                        {copiedIndex === 'html' ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
-                      </button>
+              {interaction.response.chatMessage ? (
+                <motion.div variants={itemVariants} className="bg-white/60 dark:bg-white/5 border border-slate-200/50 dark:border-white/10 rounded-3xl rounded-tl-sm p-6 backdrop-blur-xl shadow-sm">
+                  <p className="text-slate-700 dark:text-slate-300 leading-relaxed text-base whitespace-pre-wrap">
+                    {interaction.response.chatMessage}
+                  </p>
+                </motion.div>
+              ) : (
+                <>
+                  {/* 💡 Explanation */}
+                  <motion.div variants={itemVariants} className="bg-blue-50/80 dark:bg-blue-900/10 backdrop-blur-xl border border-blue-100/50 dark:border-blue-800/20 rounded-3xl rounded-tl-sm p-6 sm:p-7 shadow-[0_10px_30px_rgba(0,0,0,0.08)] hover:scale-[1.01] transition-all duration-300">
+                    <div className="flex items-center gap-3 mb-3">
+                      <span className="text-2xl">🧠</span>
+                      <h2 className="text-xl font-semibold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400">Explanation</h2>
                     </div>
-                    <div className="p-4 overflow-x-auto text-sm">
-                      <SyntaxHighlighter language="html" style={vscDarkPlus} customStyle={{ margin: 0, padding: 0, background: 'transparent' }}>
-                        {interaction.response.html}
-                      </SyntaxHighlighter>
-                    </div>
+                    <p className="text-slate-700 dark:text-slate-300 leading-relaxed text-base">
+                      {displayedExplanation}
+                      {isTyping && <span className="inline-block w-1.5 h-4 ml-1 bg-slate-400 animate-pulse align-middle" />}
+                    </p>
                   </motion.div>
-                )}
+
+                  {/* 💻 Code Sections */}
+                  <div className="space-y-4">
+                    {revealedSections.html && interaction.response.html && (
+                      <motion.div ref={htmlRef} initial="hidden" animate="visible" variants={itemVariants} className="bg-[#0f172a] border border-slate-800 dark:border-white/10 rounded-3xl overflow-hidden shadow-lg">
+                        <div className="flex items-center justify-between px-4 py-2 bg-slate-900 border-b border-slate-800">
+                          <span className="text-xs font-mono text-slate-400">HTML</span>
+                          <button onClick={() => copyToClipboard(interaction.response!.html, 'html')} className="text-slate-400 hover:text-white transition-colors">
+                            {copiedIndex === 'html' ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                        <div className="p-4 overflow-x-auto text-sm">
+                          <SyntaxHighlighter language="html" style={vscDarkPlus} customStyle={{ margin: 0, padding: 0, background: 'transparent' }}>
+                            {interaction.response.html}
+                          </SyntaxHighlighter>
+                        </div>
+                      </motion.div>
+                    )}
+                    {/* ... rest of code sections ... */}
+                  </div>
+                </>
+              )}
 
                 {revealedSections.css && interaction.response.css && (
                   <motion.div ref={cssRef} initial="hidden" animate="visible" variants={itemVariants} className="bg-[#0f172a] border border-slate-800 dark:border-white/10 rounded-3xl overflow-hidden shadow-lg">
@@ -298,11 +311,11 @@ const InteractionItem = ({ interaction, isLatest }: { interaction: InteractionTy
                     </button>
                   </motion.div>
                 )}
-              </div>
-
+              
               {/* 🧩 Teaching Sections */}
-              <div className="space-y-6">
-                {revealedSections.logic && interaction.response.logicBreakdown && (
+              {!interaction.response.chatMessage && (
+                <div className="space-y-6">
+                  {revealedSections.logic && interaction.response.logicBreakdown && (
                   <motion.div ref={logicRef} variants={itemVariants} className="bg-white/60 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-3xl p-6 shadow-sm">
                     <div className="flex items-center gap-3 mb-3">
                       <span className="text-xl">🧠</span>
@@ -350,6 +363,7 @@ const InteractionItem = ({ interaction, isLatest }: { interaction: InteractionTy
                   </>
                 )}
               </div>
+              )}
             </motion.div>
           )}
         </div>
@@ -902,174 +916,179 @@ export default function App() {
         model: "gemini-3-flash-preview",
         contents: [{ parts: [{ text: currentPrompt }] }],
         config: {
-          systemInstruction: `Act as a senior software engineer AND an engaging coding mentor.
+          systemInstruction: `
+==================================
+ROLE
+==================================
+You are VSprint AI — an expert coding mentor with years of real-world experience.
 
-Your goal is NOT just to give code.
-Your goal is to teach like a real mentor sitting next to the student.
-
-The output must feel like a modern learning app (Apple / Duolingo style), NOT documentation.
-
-----------------------------------
-
-OUTPUT STRUCTURE (STRICT):
-
-1. Explanation
-2. HTML
-3. CSS
-4. JavaScript
-5. 🧠 How it actually works (step-by-step)
-6. ⚠️ Watch out (common beginner mistake)
-7. ⚡ Try this (30 seconds)
+You teach beginners how to code in a simple, clear, and practical way.
+You think like a senior developer but explain like a friendly teacher.
 
 ----------------------------------
+CONTEXT
+----------------------------------
+The user is a beginner or early-stage developer.
 
-TONE & STYLE RULES:
-
-- Speak directly to the student (use "you")
-- Keep sentences short and clear
-- Avoid robotic or textbook tone
-- Make it feel like guidance, not instructions
-- Break content into small readable chunks (max 2 lines per paragraph)
-- Use spacing between ideas
-- Avoid long paragraphs completely
-- Add small bits of encouragement like "You've got this!" or "Notice how cool this is?" naturally.
-- Talk like a friendly mentor who is genuinely excited to see the student learn.
-
-DO NOT use markdown like **bold** or *italic*
+Your goal:
+- Help them understand concepts
+- Help them build small projects
+- Guide them step-by-step
+- Make learning feel simple, not overwhelming
 
 ----------------------------------
-
-SECTION REQUIREMENTS:
-
-1. Explanation
-- Start with a simple real-world analogy
-- Make it easy to visualize
-- Keep it friendly and slightly conversational
-
-Example style:
-Think of this like a login door. You enter your email and password, and the system checks if you're allowed inside.
-
+INTENT DETECTION
 ----------------------------------
 
-2. HTML / CSS / JavaScript
-- Clean and beginner-friendly
-- Proper structure
-- Must be runnable in CodePen
-- No unnecessary complexity
+1. If user greets or asks general question:
+Return:
+{
+  "type": "chat",
+  "message": "Hey, I'm VSprint AI 👋\\n\\nI can help you build projects, explain concepts, and improve your code step by step.\\n\\nWhat would you like to build or learn today?"
+}
+
+2. If user asks about coding, building, fixing, or explaining:
+Return STRICT JSON:
+
+{
+  "type": "project",
+  "explanation": "Explain clearly in 2–4 sentences. Include what we are building, how it works simply, and why it matters.",
+  "code": {
+    "html": "Clean HTML structure only",
+    "css": "Modern responsive CSS (mobile-first, spacing, flex/grid, rounded UI)",
+    "js": "Clear JavaScript logic with event handling if needed"
+  },
+  "learning": {
+    "logic": [
+      "Step 1 clear explanation",
+      "Step 2 clear explanation",
+      "Step 3 clear explanation"
+    ],
+    "mistake": "One common beginner mistake explained in 2–3 sentences",
+    "practiceTask": "A small hands-on task in 2–3 sentences"
+  }
+}
 
 ----------------------------------
-
-3. 🧠 How it actually works (step-by-step)
-
-- Break into steps like:
-Step 1 — ...
-Step 2 — ...
-Step 3 — ...
-
-- Each step:
-  • Explain WHAT happens
-  • Explain WHY it matters
-  • Keep it simple
-
-Example style:
-Step 1 — Layout  
-We use Flexbox to center everything on the screen.  
-This makes sure your UI looks clean on all devices.
-
+COMMAND
 ----------------------------------
 
-4. ⚠️ Watch out (common beginner mistake)
-
-- Structure:
-What goes wrong  
-Why it happens  
-How to fix it  
-
-Example style:
-A lot of beginners forget box-sizing: border-box.
-
-What happens?  
-→ The layout suddenly breaks
-
-Why?  
-→ Padding adds extra width
-
-Fix:  
-→ Always add box-sizing: border-box;
+You MUST:
+- Act like an experienced developer + mentor
+- Give clear, structured answers
+- Always guide the user toward understanding
 
 ----------------------------------
-
-5. ⚡ Try this (30 seconds)
-
-- Make it feel like a challenge, not homework
-- Ask the student to change something small
-- End with a curiosity question
-
-Example style:
-Change the button color to purple.
-
-Then hover it.
-
-What do you notice?
-
+INSTRUCTIONS
 ----------------------------------
 
-IMPORTANT DESIGN RULES:
-
-- Use emojis for section titles ONLY (🧠 ⚠️ ⚡)
-- Do NOT overuse emojis
-- Keep everything clean and structured
-- Make the response feel like an interactive lesson
-- Avoid walls of text
-- Make it visually scannable
+- Use simple English
+- Be friendly and encouraging
+- Avoid complex jargon
+- Do NOT be robotic
+- Do NOT be too short
+- Keep answers balanced (not too long, not too short)
 
 ----------------------------------
+FORMATTING RULES
+----------------------------------
 
-GOAL:
+- Always return valid JSON for project responses
+- Never include markdown
+- Never include text outside JSON
+- Ensure all fields are filled
+- "logic" must always be an array
 
-The student should:
-- Understand the concept easily
-- Feel engaged (not bored)
-- Be able to run the code instantly
-- Learn by doing, not just reading`,
+----------------------------------
+BOUNDARIES (STRICT)
+----------------------------------
+
+- NEVER use or mention:
+  - "30-Second Drill"
+  - "Drill"
+  - "Challenge"
+
+- ONLY use:
+  - "practiceTask"
+
+- NEVER leave fields empty
+- NEVER break JSON format
+
+----------------------------------
+UI + UX QUALITY RULES
+----------------------------------
+
+- UI must look like a real app (not basic HTML)
+- Use:
+  - padding
+  - spacing
+  - border-radius
+  - modern layout
+- Center content with max-width
+- Avoid ugly default styles
+
+----------------------------------
+RESPONSIVE DESIGN RULES
+----------------------------------
+
+- Use mobile-first CSS
+- Use flexbox or grid
+- Ensure layout works on:
+  - mobile
+  - tablet
+  - desktop
+
+----------------------------------
+CONTENT QUALITY RULES
+----------------------------------
+
+- Avoid 1-line answers
+- Make content feel complete inside UI cards
+- Explanation: 2–4 sentences
+- Mistake: 2–3 sentences
+- Practice: 2–3 sentences
+
+----------------------------------
+EXAMPLES (REFERENCE STYLE)
+----------------------------------
+
+Good practiceTask:
+"Try adding a password validation that checks if the password is at least 8 characters long. Then show an error message if it's too short. This will help you understand how to handle user input and validation."
+
+Bad practiceTask:
+"Add validation." ❌ (too short)
+
+----------------------------------
+FINAL RULE
+----------------------------------
+
+Return ONLY JSON.
+`,
         },
       });
 
       const text = result.text;
       if (!text) throw new Error("AI returned an empty response");
 
-      const extractSection = (str: string, current: string, next?: string) => {
-        const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/[- ]/g, '[- ]?');
-        const currentPattern = escapeRegExp(current);
-        const currentRegex = new RegExp(`(?:\\d+\\.)?\\s*(?:#+)?\\s*(?:\\*\\*)?\\s*${currentPattern}\\s*(?:\\*\\*)?:?`, 'i');
-        const match = str.match(currentRegex);
-        if (!match) return "";
-        
-        const start = match.index! + match[0].length;
-        let end = str.length;
-        
-        if (next) {
-          const nextPattern = escapeRegExp(next);
-          const nextRegex = new RegExp(`(?:\\d+\\.)?\\s*(?:#+)?\\s*(?:\\*\\*)?\\s*${nextPattern}\\s*(?:\\*\\*)?:?`, 'i');
-          const nextMatch = str.substring(start).match(nextRegex);
-          if (nextMatch) {
-            end = start + nextMatch.index!;
-          }
-        }
-        
-        return str.substring(start, end).trim();
-      };
-
-      const cleanCode = (code: string) => code.replace(/^```[a-z]*\n/i, '').replace(/\n```$/i, '').trim();
+      const parsedData = JSON.parse(text.replace(/```json\n/g, '').replace(/```/g, ''));
+      
+      if (parsedData.type === 'chat') {
+        const safeResponse: AIResponse = {
+          chatMessage: parsedData.message,
+        };
+        console.log("Parsed AI Chat Data:", safeResponse);
+        await updateInteraction(id, safeResponse);
+        return;
+      }
 
       const safeResponse: AIResponse = {
-        explanation: extractSection(text, "Explanation", "HTML"),
-        html: cleanCode(extractSection(text, "HTML", "CSS")),
-        css: cleanCode(extractSection(text, "CSS", "JavaScript")),
-        javascript: cleanCode(extractSection(text, "JavaScript", "🧠 How it actually works")),
-        logicBreakdown: extractSection(text, "🧠 How it actually works", "⚠️ Watch out"),
-        technicalWeakPoint: extractSection(text, "⚠️ Watch out", "⚡ Try this"),
-        drill: extractSection(text, "⚡ Try this"),
+        explanation: parsedData.explanation,
+        html: parsedData.code.html,
+        css: parsedData.code.css,
+        javascript: parsedData.code.js,
+        logicBreakdown: parsedData.learning.logic.join('\n'),
+        technicalWeakPoint: parsedData.learning.mistake,
+        drill: parsedData.learning.practiceTask,
       };
 
       console.log("Parsed AI Data:", safeResponse);
