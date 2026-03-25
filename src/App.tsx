@@ -16,7 +16,7 @@ interface AIResponse {
   drill: string;
 }
 
-interface InteractionType {
+export interface InteractionType {
   id: string;
   prompt: string;
   response: AIResponse | null;
@@ -740,14 +740,21 @@ const CinematicIntro = ({ onComplete }: { onComplete: () => void }) => {
 import { supabase } from './supabaseClient';
 import { SignIn } from './components/SignIn';
 import { SignUp } from './components/SignUp';
+import { ProfileAvatar } from './components/ProfileAvatar';
+import { getInteractions, createInteraction, updateInteraction, deleteInteraction } from './services/interactionService';
+import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 export default function App() {
   const [authView, setAuthView] = useState<'home' | 'signin' | 'signup'>('home');
+  const [user, setUser] = useState<SupabaseUser | null>(null);
   
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) {
         setAuthView('signin');
+      } else {
+        setUser(session.user);
+        getInteractions(session.user.id).then(setInteractions);
       }
     });
 
@@ -756,8 +763,12 @@ export default function App() {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!session) {
         setAuthView('signin');
+        setUser(null);
+        setInteractions([]);
       } else {
         setAuthView('home');
+        setUser(session.user);
+        getInteractions(session.user.id).then(setInteractions);
       }
     });
 
@@ -1063,6 +1074,7 @@ The student should:
 
       console.log("Parsed AI Data:", safeResponse);
 
+      await updateInteraction(id, safeResponse);
       setInteractions(prev => prev.map(interaction => 
         interaction.id === id 
           ? { ...interaction, response: safeResponse, loading: false, statusMessage: null }
@@ -1072,6 +1084,7 @@ The student should:
       console.error('AI Error:', err);
       
       if (attempt === 1) {
+        await updateInteraction(id, { statusMessage: "AI is warming up... please wait a moment ✨" });
         setInteractions(prev => prev.map(interaction => 
           interaction.id === id 
             ? { ...interaction, statusMessage: "AI is warming up... please wait a moment ✨" }
@@ -1081,6 +1094,7 @@ The student should:
           attemptFetch(currentPrompt, id, 2);
         }, 3000);
       } else {
+        await updateInteraction(id, { statusMessage: "Still connecting... try again in a few seconds", loading: false });
         setInteractions(prev => prev.map(interaction => 
           interaction.id === id 
             ? { ...interaction, statusMessage: "Still connecting... try again in a few seconds", loading: false }
@@ -1093,16 +1107,9 @@ The student should:
   const handleSubmit = async (e?: React.FormEvent, promptOverride?: string) => {
     if (e) e.preventDefault();
     const currentPrompt = promptOverride || prompt;
-    if (!currentPrompt.trim()) return;
+    if (!currentPrompt.trim() || !user) return;
 
-    const newId = Date.now().toString();
-    const newInteraction: InteractionType = {
-      id: newId,
-      prompt: currentPrompt.trim(),
-      response: null,
-      loading: true,
-      statusMessage: null
-    };
+    const newInteraction = await createInteraction(user.id, currentPrompt.trim());
 
     setInteractions(prev => [...prev, newInteraction]);
     setPrompt(''); // Clear prompt immediately
@@ -1113,17 +1120,16 @@ The student should:
     if (demoMode && demoKey) {
       setTimeout(() => {
         setInteractions(prev => prev.map(interaction => 
-          interaction.id === newId 
+          interaction.id === newInteraction.id 
             ? { ...interaction, response: DEMO_RESPONSES[demoKey], loading: false }
             : interaction
         ));
         setTimeout(() => outputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 100);
       }, 800);
-      return;
+    } else {
+      await attemptFetch(currentPrompt.trim(), newInteraction.id, 1);
+      setTimeout(() => outputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 100);
     }
-
-    await attemptFetch(currentPrompt.trim(), newId, 1);
-    setTimeout(() => outputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 100);
   };
 
   const scrollToTool = () => {
@@ -1221,7 +1227,11 @@ The student should:
                 </span>
               </div>
               <div className="flex items-center gap-4">
-                <button onClick={() => setAuthView('signin')} className="text-sky-800 dark:text-cyan-100 font-medium hover:text-blue-500 transition-colors">Sign In</button>
+                {user ? (
+                  <ProfileAvatar user={user} />
+                ) : (
+                  <button onClick={() => setAuthView('signin')} className="text-sky-800 dark:text-cyan-100 font-medium hover:text-blue-500 transition-colors">Sign In</button>
+                )}
                 <button
                   onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
                   className="p-2.5 rounded-full bg-white/50 dark:bg-white/5 border border-slate-200 dark:border-white/10 backdrop-blur-md hover:bg-white/80 dark:hover:bg-white/10 transition-all text-sky-800 dark:text-cyan-100 shadow-sm"
