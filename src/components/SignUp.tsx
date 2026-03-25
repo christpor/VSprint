@@ -25,6 +25,18 @@ export const SignUp = ({ onSwitch }: { onSwitch: () => void }) => {
     setLoading(false);
   };
 
+  const handleGoogleSignIn = async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin,
+      },
+    });
+    if (error) {
+      setError(error.message);
+    }
+  };
+
   return (
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
@@ -62,6 +74,14 @@ export const SignUp = ({ onSwitch }: { onSwitch: () => void }) => {
           className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform"
         >
           {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Sign Up <ArrowRight className="w-4 h-4" /></>}
+        </button>
+        <button
+          type="button"
+          onClick={handleGoogleSignIn}
+          className="w-full py-3 rounded-xl bg-white dark:bg-zinc-800 text-slate-900 dark:text-white font-semibold flex items-center justify-center gap-2 border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-zinc-700 transition-colors"
+        >
+          <img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" alt="Google" className="w-5 h-5" referrerPolicy="no-referrer" />
+          Continue with Google
         </button>
       </form>
       <p className="mt-6 text-center text-slate-500 dark:text-slate-400">
