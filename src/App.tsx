@@ -58,7 +58,7 @@ const InteractionItem = ({ interaction, isLatest }: { interaction: InteractionTy
         drill: false 
       });
 
-      const text = interaction.response.explanation;
+      const text = interaction.response.explanation || interaction.response.chatMessage || "";
       let i = 0;
       let lastTime = performance.now();
       let animationFrameId: number;
@@ -207,7 +207,8 @@ const InteractionItem = ({ interaction, isLatest }: { interaction: InteractionTy
               {interaction.response.chatMessage ? (
                 <motion.div variants={itemVariants} className="bg-white/60 dark:bg-white/5 border border-slate-200/50 dark:border-white/10 rounded-3xl rounded-tl-sm p-6 backdrop-blur-xl shadow-sm">
                   <p className="text-slate-700 dark:text-slate-300 leading-relaxed text-base whitespace-pre-wrap">
-                    {interaction.response.chatMessage}
+                    {displayedExplanation}
+                    {isTyping && <span className="inline-block w-1.5 h-4 ml-1 bg-slate-400 animate-pulse align-middle" />}
                   </p>
                 </motion.div>
               ) : (
@@ -761,6 +762,21 @@ import type { User as SupabaseUser } from '@supabase/supabase-js';
 export default function App() {
   const [authView, setAuthView] = useState<'home' | 'signin' | 'signup'>('home');
   const [user, setUser] = useState<SupabaseUser | null>(null);
+  const [totalActivity, setTotalActivity] = useState<number>(0);
+
+  const fetchTotalActivity = useCallback(async (userId: string) => {
+    try {
+      const { count, error } = await supabase
+        .from('interactions')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId);
+      
+      if (error) throw error;
+      setTotalActivity(count || 0);
+    } catch (err) {
+      console.error('Error fetching total activity:', err);
+    }
+  }, []);
   
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -769,6 +785,7 @@ export default function App() {
       } else {
         setUser(session.user);
         getInteractions(session.user.id).then(setInteractions);
+        fetchTotalActivity(session.user.id);
       }
     });
 
@@ -779,15 +796,41 @@ export default function App() {
         setAuthView('signin');
         setUser(null);
         setInteractions([]);
+        setTotalActivity(0);
       } else {
         setAuthView('home');
         setUser(session.user);
         getInteractions(session.user.id).then(setInteractions);
+        fetchTotalActivity(session.user.id);
       }
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [fetchTotalActivity]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel('interactions_count')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'interactions',
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          setTotalActivity(prev => prev + 1);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
 
   const [showIntro, setShowIntro] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -798,6 +841,7 @@ export default function App() {
   const [prompt, setPrompt] = useState('');
   const [interactions, setInteractions] = useState<InteractionType[]>([]);
   const [demoMode, setDemoMode] = useState(false);
+  const [showPlanLimit, setShowPlanLimit] = useState(false);
   const toolRef = useRef<HTMLDivElement>(null);
   const outputRef = useRef<HTMLDivElement>(null);
 
@@ -1128,6 +1172,29 @@ Return ONLY JSON.
     const currentPrompt = promptOverride || prompt;
     if (!currentPrompt.trim() || !user) return;
 
+    // Plan Limit Check (Free tier: 3 generations)
+    // We fetch count again to be absolutely sure
+    try {
+      const { count, error } = await supabase
+        .from('interactions')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id);
+      
+      if (error) throw error;
+      
+      if (count !== null && count >= 3) {
+        setShowPlanLimit(true);
+        return;
+      }
+    } catch (err) {
+      console.error('Error checking plan limit:', err);
+      // If error, we still check local state as fallback
+      if (totalActivity >= 3) {
+        setShowPlanLimit(true);
+        return;
+      }
+    }
+
     const newInteraction = await createInteraction(user.id, currentPrompt.trim());
 
     setInteractions(prev => [...prev, newInteraction]);
@@ -1201,6 +1268,59 @@ Return ONLY JSON.
           <div className="pointer-events-none fixed inset-0 z-0 bg-[radial-gradient(circle_at_center,rgba(59,130,246,0.03)_0%,transparent_100%)] dark:bg-[radial-gradient(circle_at_center,rgba(59,130,246,0.15)_0%,rgba(2,6,23,1)_100%)]" />
           
           <BackgroundSystem theme={theme} />
+
+          <AnimatePresence>
+            {showPlanLimit && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-md"
+                onClick={() => setShowPlanLimit(false)}
+              >
+                <motion.div
+                  initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                  animate={{ scale: 1, opacity: 1, y: 0 }}
+                  exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                  className="w-full max-w-md bg-white/80 dark:bg-zinc-900/80 backdrop-blur-2xl border border-slate-200 dark:border-white/10 rounded-[2.5rem] p-8 shadow-2xl overflow-hidden relative"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {/* Decorative background */}
+                  <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/2 w-32 h-32 bg-blue-500/20 rounded-full blur-3xl pointer-events-none" />
+                  <div className="absolute bottom-0 left-0 translate-y-1/2 -translate-x-1/2 w-32 h-32 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none" />
+
+                  <div className="relative z-10 text-center">
+                    <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-xl shadow-blue-500/20">
+                      <Rocket className="w-10 h-10 text-white" />
+                    </div>
+                    
+                    <h2 className="text-3xl font-bold text-sky-950 dark:text-cyan-50 mb-4 tracking-tight">
+                      Free vibe limit reached.
+                    </h2>
+                    
+                    <p className="text-lg text-sky-800 dark:text-cyan-200/80 mb-8 leading-relaxed">
+                      Upgrade to Pro for unlimited high-density logic and debugging.
+                    </p>
+
+                    <div className="space-y-3">
+                      <button 
+                        onClick={() => setShowPlanLimit(false)}
+                        className="w-full py-4 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold shadow-xl shadow-blue-500/25 transition-all hover:scale-[1.02] active:scale-95"
+                      >
+                        Upgrade to Pro
+                      </button>
+                      <button 
+                        onClick={() => setShowPlanLimit(false)}
+                        className="w-full py-4 rounded-2xl bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 font-semibold hover:bg-slate-200 dark:hover:bg-white/10 transition-all"
+                      >
+                        Maybe later
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Mouse Follow Glow - Layer 1 (Fast, Inner) */}
           <div
@@ -1527,6 +1647,71 @@ Return ONLY JSON.
               </div>
             </div>
           </section>
+
+          {/* Dashboard Stats (Only for logged in users) */}
+          {user && (
+            <section className="pt-24 pb-12 px-4 sm:px-6 md:px-10">
+              <div className="max-w-6xl mx-auto">
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  className="grid grid-cols-1 md:grid-cols-3 gap-6"
+                >
+                  <div className="p-8 rounded-3xl bg-white/50 dark:bg-zinc-900/50 border border-slate-200/50 dark:border-white/10 backdrop-blur-xl shadow-xl shadow-slate-200/20 dark:shadow-black/20">
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className="w-12 h-12 rounded-2xl bg-blue-100 dark:bg-blue-500/20 flex items-center justify-center">
+                        <Zap className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider">Total Activity</h3>
+                        <div className="text-3xl font-bold text-sky-950 dark:text-cyan-50">
+                          {totalActivity}
+                        </div>
+                      </div>
+                    </div>
+                    <p className="text-sm text-sky-800 dark:text-cyan-200/80">
+                      High-Density Component Generator and Precision Debugger usage.
+                    </p>
+                  </div>
+                  
+                  <div className="p-8 rounded-3xl bg-white/50 dark:bg-zinc-900/50 border border-slate-200/50 dark:border-white/10 backdrop-blur-xl shadow-xl shadow-slate-200/20 dark:shadow-black/20">
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className="w-12 h-12 rounded-2xl bg-cyan-100 dark:bg-cyan-500/20 flex items-center justify-center">
+                        <Target className="w-6 h-6 text-cyan-600 dark:text-cyan-400" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider">Mastery Level</h3>
+                        <div className="text-3xl font-bold text-sky-950 dark:text-cyan-50">
+                          Lvl 4
+                        </div>
+                      </div>
+                    </div>
+                    <p className="text-sm text-sky-800 dark:text-cyan-200/80">
+                      Keep practicing to reach the next level.
+                    </p>
+                  </div>
+
+                  <div className="p-8 rounded-3xl bg-white/50 dark:bg-zinc-900/50 border border-slate-200/50 dark:border-white/10 backdrop-blur-xl shadow-xl shadow-slate-200/20 dark:shadow-black/20">
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className="w-12 h-12 rounded-2xl bg-indigo-100 dark:bg-indigo-500/20 flex items-center justify-center">
+                        <Rocket className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider">Current Streak</h3>
+                        <div className="text-3xl font-bold text-sky-950 dark:text-cyan-50">
+                          7 Days
+                        </div>
+                      </div>
+                    </div>
+                    <p className="text-sm text-sky-800 dark:text-cyan-200/80">
+                      You're on fire! Don't break the streak.
+                    </p>
+                  </div>
+                </motion.div>
+              </div>
+            </section>
+          )}
 
           {/* AI Tool Section */}
           <section ref={toolRef} className="py-48 px-4 sm:px-6 md:px-10 relative">

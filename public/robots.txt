@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://vprintt.netlify.app//sitemap.xml
