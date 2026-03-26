@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence, useScroll, useTransform } from 'motion/react';
-import { Loader2, Sparkles, AlertTriangle, Zap, Terminal, Check, Copy, Sun, Moon, ArrowRight, Code2, BrainCircuit, Target, User, Rocket, Star, CheckCircle2, Mail, Send, Settings, Play, ExternalLink, LogOut, MessageSquare, Plus, History, Menu, X, Ticket } from 'lucide-react';
+import { Loader2, Sparkles, AlertTriangle, Zap, Terminal, Check, Copy, Sun, Moon, ArrowRight, Code2, BrainCircuit, Target, User, Rocket, Star, CheckCircle2, Mail, Send, Settings, Play, ExternalLink, LogOut, MessageSquare, Plus, History, Menu, X, Ticket, Monitor } from 'lucide-react';
 import { GoogleGenAI, Type } from "@google/genai";
 import { DEMO_RESPONSES } from './demoData';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -549,8 +549,8 @@ ${javascript || ''}
 
 const getAI = () => {
   const apiKey = process.env.GEMINI_API_KEY || (import.meta as any).env?.VITE_GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error("Missing GEMINI_API_KEY environment variable");
+  if (!apiKey || apiKey === "undefined") {
+    throw new Error("Missing GEMINI_API_KEY environment variable. Please check your configuration.");
   }
   return new GoogleGenAI({ apiKey });
 };
@@ -933,6 +933,8 @@ export default function App() {
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [totalActivity, setTotalActivity] = useState<number>(0);
 
+  const [isPresentationMode, setIsPresentationMode] = useState(false);
+
   const fetchTotalActivity = useCallback(async (userId: string) => {
     try {
       const { count, error } = await supabase
@@ -948,7 +950,17 @@ export default function App() {
   }, []);
   
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        console.error('Auth session error:', error.message);
+        // If the refresh token is invalid, sign out to clear local storage
+        if (error.message.includes('refresh_token')) {
+          supabase.auth.signOut();
+        }
+        setAuthView('signin');
+        return;
+      }
+      
       if (!session) {
         setAuthView('signin');
       } else {
@@ -959,16 +971,20 @@ export default function App() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session) {
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
         setAuthView('signin');
         setUser(null);
         setInteractions([]);
         setTotalActivity(0);
-      } else {
+        setCurrentConversationId(null);
+        setConversations([]);
+      } else if (session) {
         setAuthView('home');
         setUser(session.user);
         fetchTotalActivity(session.user.id);
+      } else {
+        setAuthView('signin');
       }
     });
 
@@ -1057,11 +1073,17 @@ export default function App() {
       const bonus = VALID_CODES[code];
       const newQuota = bonusQuota + bonus;
       setBonusQuota(newQuota);
-      setUsedCodes(prev => [...prev, code]);
+      setUsedCodes(prev => {
+        const updated = [...prev, code];
+        localStorage.setItem('vprint_used_codes', JSON.stringify(updated));
+        return updated;
+      });
       localStorage.setItem('vprint_bonus_quota', newQuota.toString());
-      localStorage.setItem('vprint_used_codes', JSON.stringify([...usedCodes, code]));
       setRedeemSuccess(`Successfully unlocked ${bonus} more answers!`);
       setRedeemCodeInput('');
+      
+      // Force a re-check of the plan limit by slightly delaying the modal close
+      // and ensuring the UI knows the quota has increased.
       setTimeout(() => {
         setShowPlanLimit(false);
         setRedeemSuccess('');
@@ -1281,7 +1303,17 @@ Return ONLY the JSON object. No preamble. No postscript.
           chatMessage: parsedData.message,
         };
         console.log("Parsed AI Chat Data:", safeResponse);
-        await updateInteraction(id, safeResponse);
+        try {
+          await updateInteraction(id, safeResponse);
+        } catch (dbErr) {
+          console.warn('Could not update chat interaction in DB:', dbErr);
+        }
+        
+        setInteractions(prev => prev.map(interaction => 
+          interaction.id === id 
+            ? { ...interaction, response: safeResponse, loading: false, statusMessage: null }
+            : interaction
+        ));
         return;
       }
 
@@ -1298,7 +1330,12 @@ Return ONLY the JSON object. No preamble. No postscript.
 
       console.log("Parsed AI Data:", safeResponse);
 
-      await updateInteraction(id, safeResponse);
+      try {
+        await updateInteraction(id, safeResponse);
+      } catch (dbErr) {
+        console.warn('Could not update interaction in DB:', dbErr);
+      }
+      
       setInteractions(prev => prev.map(interaction => 
         interaction.id === id 
           ? { ...interaction, response: safeResponse, loading: false, statusMessage: null }
@@ -1308,7 +1345,12 @@ Return ONLY the JSON object. No preamble. No postscript.
       console.error('AI Error:', err);
       
       if (attempt === 1) {
-        await updateInteraction(id, { statusMessage: "AI is warming up... please wait a moment ✨" });
+        try {
+          await updateInteraction(id, { statusMessage: "AI is warming up... please wait a moment ✨" });
+        } catch (dbErr) {
+          console.warn('Could not update status in DB:', dbErr);
+        }
+        
         setInteractions(prev => prev.map(interaction => 
           interaction.id === id 
             ? { ...interaction, statusMessage: "AI is warming up... please wait a moment ✨" }
@@ -1318,7 +1360,12 @@ Return ONLY the JSON object. No preamble. No postscript.
           attemptFetch(currentPrompt, id, 2);
         }, 3000);
       } else {
-        await updateInteraction(id, { statusMessage: "Still connecting... try again in a few seconds", loading: false });
+        try {
+          await updateInteraction(id, { statusMessage: "Still connecting... try again in a few seconds", loading: false });
+        } catch (dbErr) {
+          console.warn('Could not update status in DB:', dbErr);
+        }
+        
         setInteractions(prev => prev.map(interaction => 
           interaction.id === id 
             ? { ...interaction, statusMessage: "Still connecting... try again in a few seconds", loading: false }
@@ -1399,9 +1446,36 @@ Return ONLY the JSON object. No preamble. No postscript.
   const handleSubmit = async (e?: React.FormEvent, promptOverride?: string) => {
     if (e) e.preventDefault();
     const currentPrompt = promptOverride || prompt;
-    if (!currentPrompt.trim() || !user) return;
+    if (!currentPrompt.trim()) return;
 
-    // Plan Limit Check (Free tier: 4 + bonusQuota generations)
+    if (!user) {
+      setAuthView('signin');
+      return;
+    }
+
+    // 1. Generate local ID and update UI INSTANTLY
+    const convId = currentConversationId || crypto.randomUUID();
+    const interactionId = crypto.randomUUID();
+    
+    const localInteraction: InteractionType = {
+      id: interactionId,
+      user_id: user.id,
+      conversation_id: convId,
+      prompt: currentPrompt.trim(),
+      response: null,
+      loading: true,
+      statusMessage: 'Analyzing...',
+      created_at: new Date().toISOString()
+    };
+
+    setInteractions(prev => [...prev, localInteraction]);
+    setPrompt('');
+    
+    if (!currentConversationId) {
+      setCurrentConversationId(convId);
+    }
+
+    // 2. Plan Limit Check (Free tier: 100 + bonusQuota generations)
     try {
       const { count, error } = await supabase
         .from('interactions')
@@ -1410,44 +1484,51 @@ Return ONLY the JSON object. No preamble. No postscript.
       
       if (error) throw error;
       
-      if (count !== null && count >= (4 + bonusQuota)) {
+      if (count !== null && count >= (100 + bonusQuota)) {
         setShowPlanLimit(true);
+        // Remove the local interaction if limit reached
+        setInteractions(prev => prev.filter(i => i.id !== interactionId));
         return;
       }
     } catch (err) {
       console.error('Error checking plan limit:', err);
-      if (totalActivity >= (4 + bonusQuota)) {
+      if (totalActivity >= (100 + bonusQuota)) {
         setShowPlanLimit(true);
+        setInteractions(prev => prev.filter(i => i.id !== interactionId));
         return;
       }
     }
 
-    const convId = currentConversationId || crypto.randomUUID();
-    const newInteraction = await createInteraction(user.id, convId, currentPrompt.trim());
+    // 3. Save to DB (Async, don't block AI call)
+    createInteraction(user.id, convId, currentPrompt.trim(), interactionId).catch(err => {
+      console.warn('Failed to save interaction to DB:', err);
+    });
 
-    if (!currentConversationId) {
-      setCurrentConversationId(convId);
-      fetchConversations(); // Refresh sidebar
-    }
-
-    setInteractions(prev => [...prev, { ...newInteraction, loading: true, statusMessage: 'Analyzing...' }]);
-    setPrompt(''); 
-
-    const lowerPrompt = currentPrompt.toLowerCase();
-    const demoKey = Object.keys(DEMO_RESPONSES).find(key => lowerPrompt.includes(key));
-    
-    if (demoMode && demoKey) {
-      setTimeout(() => {
-        setInteractions(prev => prev.map(interaction => 
-          interaction.id === newInteraction.id 
-            ? { ...interaction, response: DEMO_RESPONSES[demoKey], loading: false }
-            : interaction
-        ));
+    // 4. Call AI
+    try {
+      const lowerPrompt = currentPrompt.toLowerCase();
+      const demoKey = Object.keys(DEMO_RESPONSES).find(key => lowerPrompt.includes(key));
+      
+      if (demoMode && demoKey) {
+        setTimeout(() => {
+          setInteractions(prev => prev.map(interaction => 
+            interaction.id === interactionId 
+              ? { ...interaction, response: DEMO_RESPONSES[demoKey], loading: false }
+              : interaction
+          ));
+          setTimeout(() => outputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 100);
+        }, 800);
+      } else {
+        await attemptFetch(currentPrompt.trim(), interactionId, 1);
         setTimeout(() => outputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 100);
-      }, 800);
-    } else {
-      await attemptFetch(currentPrompt.trim(), newInteraction.id, 1);
-      setTimeout(() => outputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 100);
+      }
+    } catch (err) {
+      console.error('Error in interaction flow:', err);
+      setInteractions(prev => prev.map(interaction => 
+        interaction.id === interactionId 
+          ? { ...interaction, statusMessage: "Something went wrong. Please try again.", loading: false }
+          : interaction
+      ));
     }
   };
 
@@ -1676,22 +1757,33 @@ Return ONLY the JSON object. No preamble. No postscript.
                       )}
                     </div>
 
-                    <div className="p-6 border-t border-slate-200 dark:border-white/10 space-y-4">
-                      <button 
-                        onClick={() => {
-                          setShowPlanLimit(true);
-                          setIsSidebarOpen(false);
-                        }}
-                        className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600/10 to-indigo-600/10 hover:from-blue-600/20 hover:to-indigo-600/20 text-blue-600 dark:text-blue-400 border border-blue-500/20 font-semibold transition-all flex items-center justify-center gap-2 group"
-                      >
-                        <Ticket className="w-4 h-4 group-hover:rotate-12 transition-transform" />
-                        Redeem Code
-                      </button>
-                      <div className="flex items-center gap-3 text-sm text-slate-500 dark:text-zinc-400">
-                        <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                        <span>{user?.email}</span>
+                      <div className="p-6 border-t border-slate-200 dark:border-white/10 space-y-4">
+                        {!isPresentationMode && (
+                          <button 
+                            onClick={() => {
+                              setShowPlanLimit(true);
+                              setIsSidebarOpen(false);
+                            }}
+                            className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600/10 to-indigo-600/10 hover:from-blue-600/20 hover:to-indigo-600/20 text-blue-600 dark:text-blue-400 border border-blue-500/20 font-semibold transition-all flex items-center justify-center gap-2 group"
+                          >
+                            <Ticket className="w-4 h-4 group-hover:rotate-12 transition-transform" />
+                            Redeem Code
+                          </button>
+                        )}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3 text-sm text-slate-500 dark:text-zinc-400">
+                            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                            <span className="truncate max-w-[120px]">{user?.email}</span>
+                          </div>
+                          <button
+                            onClick={() => setIsPresentationMode(!isPresentationMode)}
+                            className={`p-2 rounded-lg transition-colors ${isPresentationMode ? 'bg-blue-500/20 text-blue-500' : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5'}`}
+                            title="Presentation Mode"
+                          >
+                            <Monitor className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
-                    </div>
                   </motion.aside>
                 </>
               )}
@@ -1718,13 +1810,15 @@ Return ONLY the JSON object. No preamble. No postscript.
               <div className="flex items-center gap-4">
                 {user ? (
                   <div className="flex items-center gap-4">
-                    <button 
-                      onClick={() => setShowPlanLimit(true)}
-                      className="hidden lg:flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/20 font-medium transition-all shadow-sm"
-                    >
-                      <Ticket className="w-4 h-4" />
-                      Redeem
-                    </button>
+                    {!isPresentationMode && (
+                      <button 
+                        onClick={() => setShowPlanLimit(true)}
+                        className="hidden lg:flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/20 font-medium transition-all shadow-sm"
+                      >
+                        <Ticket className="w-4 h-4" />
+                        Redeem
+                      </button>
+                    )}
                     <button 
                       onClick={startNewChat}
                       className="hidden md:flex items-center gap-2 px-4 py-2 rounded-xl bg-white/50 dark:bg-white/5 border border-slate-200 dark:border-white/10 backdrop-blur-md hover:bg-white/80 dark:hover:bg-white/10 transition-all text-sky-800 dark:text-cyan-100 shadow-sm font-medium"

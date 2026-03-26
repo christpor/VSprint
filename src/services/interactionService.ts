@@ -17,10 +17,13 @@ export const getInteractions = async (userId: string, conversationId?: string) =
   return data;
 };
 
-export const createInteraction = async (userId: string, conversationId: string, prompt: string) => {
+export const createInteraction = async (userId: string, conversationId: string, prompt: string, id?: string) => {
+  const payload: any = { user_id: userId, conversation_id: conversationId, prompt };
+  if (id) payload.id = id;
+  
   const { data, error } = await supabase
     .from('interactions')
-    .insert({ user_id: userId, conversation_id: conversationId, prompt })
+    .insert(payload)
     .select()
     .single();
   
@@ -29,6 +32,18 @@ export const createInteraction = async (userId: string, conversationId: string, 
 };
 
 export const updateInteraction = async (id: string, response: any) => {
+  // First check if the record exists to avoid 400/404 errors if it was never saved
+  const { data: existing } = await supabase
+    .from('interactions')
+    .select('id')
+    .eq('id', id)
+    .single();
+
+  if (!existing) {
+    console.warn(`Interaction ${id} not found in DB, skipping update.`);
+    return null;
+  }
+
   const { data, error } = await supabase
     .from('interactions')
     .update({ response })
@@ -36,7 +51,10 @@ export const updateInteraction = async (id: string, response: any) => {
     .select()
     .single();
   
-  if (error) throw error;
+  if (error) {
+    console.error('Error updating interaction:', error);
+    throw error;
+  }
   return data;
 };
 
