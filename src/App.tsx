@@ -299,7 +299,7 @@ const InteractionItem = ({
                   <motion.div layout variants={itemVariants} className="bg-blue-50/80 dark:bg-blue-900/10 backdrop-blur-xl border border-blue-100/50 dark:border-blue-800/20 rounded-3xl rounded-tl-sm p-6 sm:p-7 shadow-[0_10px_30px_rgba(0,0,0,0.08)] hover:scale-[1.01] transition-all duration-300">
                     <div className="flex items-center gap-3 mb-3">
                       <span className="text-2xl">🧠</span>
-                      <h2 className="text-xl font-semibold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400">Explanation</h2>
+                      <h2 className="text-xl font-semibold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400">Core Concept</h2>
                     </div>
                     <p className="text-slate-700 dark:text-slate-300 leading-relaxed text-base">
                       {displayedExplanation}
@@ -463,7 +463,7 @@ ${javascript || ''}
                   <motion.div layout ref={logicRef} variants={itemVariants} className="bg-white/60 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-3xl p-6 shadow-sm">
                     <div className="flex items-center gap-3 mb-3">
                       <span className="text-xl">🧠</span>
-                      <h3 className="text-lg font-semibold text-sky-950 dark:text-cyan-50">How it actually works (step-by-step)</h3>
+                      <h3 className="text-lg font-semibold text-sky-950 dark:text-cyan-50">Architectural Logic</h3>
                     </div>
                     <div className="text-slate-700 dark:text-slate-300 text-sm leading-relaxed whitespace-pre-wrap">
                       {interaction.response.logicBreakdown}
@@ -475,7 +475,7 @@ ${javascript || ''}
                   <motion.div layout ref={weakPointRef} variants={itemVariants} className="bg-amber-50/50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30 rounded-3xl p-6 shadow-sm">
                     <div className="flex items-center gap-3 mb-3">
                       <span className="text-xl">⚠️</span>
-                      <h3 className="text-lg font-semibold text-amber-900 dark:text-amber-200">Watch out (common beginner mistake)</h3>
+                      <h3 className="text-lg font-semibold text-amber-900 dark:text-amber-200">Senior Insight</h3>
                     </div>
                     <div className="text-amber-800/80 dark:text-amber-200/80 text-sm leading-relaxed whitespace-pre-wrap">
                       {interaction.response.technicalWeakPoint}
@@ -488,7 +488,7 @@ ${javascript || ''}
                     <motion.div layout ref={drillRef} variants={itemVariants} className="bg-emerald-50/50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-900/30 rounded-3xl p-6 shadow-sm">
                       <div className="flex items-center gap-3 mb-3">
                         <span className="text-xl">⚡</span>
-                        <h3 className="text-lg font-semibold text-emerald-900 dark:text-emerald-200">Try this (30 seconds)</h3>
+                        <h3 className="text-lg font-semibold text-emerald-900 dark:text-emerald-200">Active Mastery Drill</h3>
                       </div>
                       <div className="text-emerald-800/80 dark:text-emerald-200/80 text-sm leading-relaxed whitespace-pre-wrap">
                         {interaction.response.drill}
@@ -503,7 +503,7 @@ ${javascript || ''}
                       className="flex items-center justify-center gap-2 py-4 px-6 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl"
                     >
                       <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                      <span className="text-emerald-700 dark:text-emerald-300 font-medium">Lesson complete! You're doing great.</span>
+                      <span className="text-emerald-700 dark:text-emerald-300 font-medium">Concept Mastered. Excellent progress.</span>
                     </motion.div>
 
                     {interaction.response.nextSteps && interaction.response.nextSteps.length > 0 && (
@@ -896,7 +896,7 @@ const CinematicIntro = ({ onComplete }: { onComplete: () => void }) => {
                   transition={{ duration: 0.6, ease: cubicBezier }}
                   className="text-xl md:text-2xl text-slate-200 font-medium tracking-tight text-center"
                 >
-                  You don’t need to memorize code
+                  Stop memorizing syntax.
                 </motion.p>
                 <motion.p
                   variants={{
@@ -907,7 +907,7 @@ const CinematicIntro = ({ onComplete }: { onComplete: () => void }) => {
                   transition={{ duration: 0.6, ease: cubicBezier }}
                   className="text-lg md:text-xl text-slate-400 font-light tracking-wide text-center"
                 >
-                  You just need to understand it
+                  Start mastering logic.
                 </motion.p>
               </motion.div>
             )}
@@ -1116,10 +1116,10 @@ export default function App() {
   }, [theme]);
 
   const suggestions = [
-    { icon: <Code2 className="w-5 h-5 text-blue-500" />, text: "Generate Component: Modern Login" },
-    { icon: <Terminal className="w-5 h-5 text-indigo-500" />, text: "Fix Code: React useEffect bug" },
-    { icon: <BrainCircuit className="w-5 h-5 text-purple-500" />, text: "Explain closures in JavaScript" },
-    { icon: <Target className="w-5 h-5 text-cyan-500" />, text: "How do I center a div?" }
+    { icon: <Code2 className="w-5 h-5 text-blue-500" />, text: "Demystify React's useEffect hook..." },
+    { icon: <Terminal className="w-5 h-5 text-indigo-500" />, text: "Master the art of centering a div..." },
+    { icon: <BrainCircuit className="w-5 h-5 text-purple-500" />, text: "Uncover the secrets of JavaScript closures..." },
+    { icon: <Target className="w-5 h-5 text-cyan-500" />, text: "Build a responsive navigation bar..." }
   ];
 
   useEffect(() => {
@@ -1528,13 +1528,13 @@ Return ONLY the JSON object. No preamble. No postscript.
                     </div>
                     
                     <h2 className="text-3xl font-bold text-sky-950 dark:text-cyan-50 mb-4 tracking-tight">
-                      {totalActivity >= (4 + bonusQuota) ? "Free Vibe limit reached." : "Redeem Bonus Quota"}
+                      {totalActivity >= (4 + bonusQuota) ? "Daily Limit Achieved" : "Unlock Exclusive Access"}
                     </h2>
                     
                     <p className="text-lg text-sky-800 dark:text-cyan-200/80 mb-8 leading-relaxed">
                       {totalActivity >= (4 + bonusQuota) 
-                        ? "Unlock unlimited 30-Second Practice and Senior Coach insights."
-                        : "Enter a presentation or bonus code to unlock more AI generations."}
+                        ? "You've reached the peak of your daily plan. Step up to Elite for unlimited power and advanced insights."
+                        : "Enter your invitation code to expand your creative potential."}
                     </p>
 
                     <div className="mb-8 p-6 bg-slate-50 dark:bg-white/5 rounded-3xl border border-slate-200 dark:border-white/10">
@@ -1785,13 +1785,13 @@ Return ONLY the JSON object. No preamble. No postscript.
                 >
                   <motion.div variants={itemVariants} className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-sky-100/50 dark:bg-sky-500/10 border border-sky-200 dark:border-sky-500/20 text-sky-700 dark:text-sky-300 text-sm font-medium mb-8 backdrop-blur-sm">
                     <VSprintLogo className="w-4 h-4" />
-                    <span>Your Senior Developer Coach</span>
+                    <span>Your AI-Powered Senior Developer Coach</span>
                   </motion.div>
                   <motion.h1 variants={itemVariants} className="text-4xl sm:text-5xl md:text-7xl font-bold mb-8 tracking-tight text-sky-600 dark:text-sky-400 leading-tight">
-                    Learn to Code at the <br className="hidden md:block" />Speed of Thought
+                    Master Coding at the <br className="hidden md:block" />Speed of Thought
                   </motion.h1>
                   <motion.p variants={itemVariants} className="text-lg sm:text-xl text-sky-500 dark:text-sky-300 max-w-2xl mx-auto mb-10 leading-relaxed">
-                    Stop getting stuck. Ask any coding question and get a simple explanation, clean code, and quick drills to lock it in your memory forever.
+                    Break through coding blocks instantly. Get crystal-clear explanations, production-ready code, and targeted drills designed for deep mastery.
                   </motion.p>
                   <motion.div variants={itemVariants}>
                     <button
@@ -1815,13 +1815,13 @@ Return ONLY the JSON object. No preamble. No postscript.
                 className="text-center mb-16"
               >
                 <motion.h2 variants={itemVariants} className="text-3xl md:text-4xl font-bold mb-4 text-sky-950 dark:text-cyan-50">How It Works</motion.h2>
-                <motion.p variants={itemVariants} className="text-sky-800 dark:text-cyan-200/80">Three simple steps to mastering any concept.</motion.p>
+                <motion.p variants={itemVariants} className="text-sky-800 dark:text-cyan-200/80">The three-step path to technical mastery.</motion.p>
               </motion.div>
               <div className="grid md:grid-cols-3 gap-8">
                 {[
-                  { icon: Terminal, title: "1. Ask a Question", desc: "Type any coding problem or concept you're struggling with." },
-                  { icon: BrainCircuit, title: "2. AI Analyzes", desc: "Our AI breaks down the concept into beginner-friendly terms." },
-                  { icon: Target, title: "3. Practice & Master", desc: "Get code examples and 30-second drills to solidify your knowledge." }
+                  { icon: Terminal, title: "1. Define Your Challenge", desc: "Type any coding problem or concept you're struggling with." },
+                  { icon: BrainCircuit, title: "2. Intelligent Analysis", desc: "Our AI breaks down the concept into beginner-friendly terms." },
+                  { icon: Target, title: "3. Active Mastery", desc: "Get code examples and 30-second drills to solidify your knowledge." }
                 ].map((step, i) => (
                   <motion.div
                     key={i}
@@ -1855,9 +1855,9 @@ Return ONLY the JSON object. No preamble. No postscript.
                   <motion.h2 variants={itemVariants} className="text-3xl md:text-4xl font-bold mb-6 text-sky-950 dark:text-cyan-50">Everything you need to level up.</motion.h2>
                   <div className="space-y-6">
                     {[
-                      { title: "Code Explanation", desc: "Plain English breakdowns of complex syntax." },
-                      { title: "Technical Weak Point", desc: "Learn the common pitfalls before you make them." },
-                      { title: "30-Second Drill", desc: "Active recall exercises to build muscle memory." }
+                      { title: "Deep Code Insights", desc: "Plain English breakdowns of complex syntax." },
+                      { title: "Precision Debugging", desc: "Learn the common pitfalls before you make them." },
+                      { title: "Rapid-Fire Drills", desc: "Active recall exercises to build muscle memory." }
                     ].map((feature, i) => (
                       <motion.div variants={itemVariants} key={i} className="flex gap-4">
                         <div className="mt-1 w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-500/20 flex items-center justify-center flex-shrink-0">
@@ -1914,8 +1914,8 @@ Return ONLY the JSON object. No preamble. No postscript.
                     <User className="w-8 h-8 text-blue-500" />
                   </div>
                 </motion.div>
-                <motion.h2 variants={itemVariants} className="text-3xl font-bold mb-4 text-sky-950 dark:text-cyan-50">Meet Christpor Rin</motion.h2>
-                <motion.p variants={itemVariants} className="text-xl text-sky-800 dark:text-cyan-200/80 mb-8">Solo Developer & Creator</motion.p>
+                <motion.h2 variants={itemVariants} className="text-3xl font-bold mb-4 text-sky-950 dark:text-cyan-50">Crafted by Christpor Rin</motion.h2>
+                <motion.p variants={itemVariants} className="text-xl text-sky-800 dark:text-cyan-200/80 mb-8">Founder & Lead Architect</motion.p>
                 <motion.div variants={itemVariants} className="bg-white/50 dark:bg-zinc-900/50 p-8 rounded-3xl border border-slate-200/50 dark:border-white/10 shadow-xl">
                   <Rocket className="w-8 h-8 text-indigo-500 mx-auto mb-4" />
                   <p className="text-lg text-sky-900 dark:text-cyan-100 leading-relaxed italic">
@@ -1936,7 +1936,7 @@ Return ONLY the JSON object. No preamble. No postscript.
                 variants={staggerContainer}
                 className="text-center mb-16"
               >
-                <motion.h2 variants={itemVariants} className="text-3xl md:text-4xl font-bold mb-4 text-sky-950 dark:text-cyan-50">Loved by Developers</motion.h2>
+                <motion.h2 variants={itemVariants} className="text-3xl md:text-4xl font-bold mb-4 text-sky-950 dark:text-cyan-50">Trusted by the Developer Community</motion.h2>
               </motion.div>
               <div className="grid md:grid-cols-3 gap-6">
                 {[
@@ -1976,7 +1976,7 @@ Return ONLY the JSON object. No preamble. No postscript.
                 variants={staggerContainer}
                 className="text-center mb-16"
               >
-                <motion.h2 variants={itemVariants} className="text-3xl md:text-4xl font-bold mb-4 text-sky-950 dark:text-cyan-50">Simple Pricing</motion.h2>
+                <motion.h2 variants={itemVariants} className="text-3xl md:text-4xl font-bold mb-4 text-sky-950 dark:text-cyan-50">Flexible Plans for Every Developer</motion.h2>
               </motion.div>
               <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
                 {/* Free Plan */}
@@ -1987,7 +1987,7 @@ Return ONLY the JSON object. No preamble. No postscript.
                   transition={{ duration: 0.8, ease: "easeOut" }}
                   className="p-8 rounded-[2rem] bg-white/60 dark:bg-zinc-900/40 border border-slate-200/50 dark:border-white/10 backdrop-blur-xl shadow-xl"
                 >
-                  <h3 className="text-2xl font-bold text-sky-950 dark:text-cyan-50 mb-2">Starter</h3>
+                  <h3 className="text-2xl font-bold text-sky-950 dark:text-cyan-50 mb-2">Essentials</h3>
                   <div className="text-4xl font-bold text-sky-950 dark:text-cyan-50 mb-6">$0<span className="text-lg text-slate-500 font-normal">/mo</span></div>
                   <ul className="space-y-4 mb-8">
                     {['Basic explanations', 'Standard code snippets', 'Community support'].map((feature, i) => (
@@ -2012,7 +2012,7 @@ Return ONLY the JSON object. No preamble. No postscript.
                   <div className="absolute top-0 right-8 -translate-y-1/2 px-3 py-1 bg-gradient-to-r from-blue-500 to-indigo-500 text-white text-xs font-bold rounded-full shadow-lg">
                     MOST POPULAR
                   </div>
-                  <h3 className="text-2xl font-bold text-sky-950 dark:text-cyan-50 mb-2">Pro</h3>
+                  <h3 className="text-2xl font-bold text-sky-950 dark:text-cyan-50 mb-2">Elite</h3>
                   <div className="text-4xl font-bold text-sky-950 dark:text-cyan-50 mb-6">$19<span className="text-lg text-slate-500 font-normal">/mo</span></div>
                   <ul className="space-y-4 mb-8">
                     {['Advanced explanations', 'Complex drills', 'Priority AI processing', 'Save history'].map((feature, i) => (
@@ -2022,7 +2022,7 @@ Return ONLY the JSON object. No preamble. No postscript.
                     ))}
                   </ul>
                   <button className="w-full py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white font-semibold shadow-xl shadow-cyan-500/25 hover:shadow-cyan-500/40 transition-all hover:scale-105 active:scale-95">
-                    Upgrade to Pro
+                    Upgrade to Elite
                   </button>
                 </motion.div>
               </div>
@@ -2103,8 +2103,8 @@ Return ONLY the JSON object. No preamble. No postscript.
               variants={staggerContainer}
               className="max-w-3xl mx-auto text-center mb-12"
             >
-              <motion.h2 variants={itemVariants} className="text-3xl md:text-5xl font-bold mb-6 text-sky-950 dark:text-cyan-50">Try it yourself.</motion.h2>
-              <motion.p variants={itemVariants} className="text-lg text-sky-800 dark:text-cyan-200/80">Ask a question and experience the magic.</motion.p>
+              <motion.h2 variants={itemVariants} className="text-3xl md:text-5xl font-bold mb-6 text-sky-950 dark:text-cyan-50">Experience the Future of Learning.</motion.h2>
+              <motion.p variants={itemVariants} className="text-lg text-sky-800 dark:text-cyan-200/80">Input your challenge and witness instant clarity.</motion.p>
             </motion.div>
 
             {/* Input Section */}
@@ -2189,7 +2189,7 @@ Return ONLY the JSON object. No preamble. No postscript.
                         <Sparkles className="w-8 h-8 text-white" />
                       </div>
                       <h2 className="text-3xl font-semibold text-slate-800 dark:text-slate-200">
-                        How can I help you code today?
+                        What shall we build together today?
                       </h2>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-2xl mt-4">
                         {suggestions.map((suggestion, idx) => (
