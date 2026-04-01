@@ -3,8 +3,8 @@ import { motion, AnimatePresence, useScroll, useTransform } from 'motion/react';
 import { Loader2, Sparkles, AlertTriangle, Zap, Terminal, Check, Copy, Sun, Moon, ArrowRight, Code2, BrainCircuit, Target, User, Rocket, Star, CheckCircle2, Mail, Send, Settings, Play, ExternalLink, LogOut, MessageSquare, Plus, History, Menu, X, Ticket, Monitor } from 'lucide-react';
 import { GoogleGenAI, Type } from "@google/genai";
 import { DEMO_RESPONSES } from './demoData';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { Sidebar } from './components/Sidebar';
+import { VSprintLogo } from './components/VSprintLogo';
 
 interface AIResponse {
   explanation?: string;
@@ -29,7 +29,7 @@ export interface InteractionType {
   created_at: string;
 }
 
-interface Conversation {
+export interface Conversation {
   id: string;
   title: string;
   created_at: string;
@@ -547,14 +547,6 @@ ${javascript || ''}
 );
 };
 
-const getAI = () => {
-  const apiKey = process.env.GEMINI_API_KEY || (import.meta as any).env?.VITE_GEMINI_API_KEY;
-  if (!apiKey || apiKey === "undefined") {
-    throw new Error("Missing GEMINI_API_KEY environment variable. Please check your configuration.");
-  }
-  return new GoogleGenAI({ apiKey });
-};
-
 const DEBUG = false;
 
 const BackgroundSystem = ({ theme }: { theme: string }) => {
@@ -711,40 +703,7 @@ const BackgroundSystem = ({ theme }: { theme: string }) => {
   );
 };
 
-const VSprintLogo = ({ className = "" }: { className?: string }) => (
-  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
-    <defs>
-      <linearGradient id="vGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stopColor="#06b6d4" />
-        <stop offset="50%" stopColor="#3b82f6" />
-        <stop offset="100%" stopColor="#8b5cf6" />
-      </linearGradient>
-      <filter id="vGlow" x="-20%" y="-20%" width="140%" height="140%">
-        <feGaussianBlur stdDeviation="1.5" result="blur" />
-        <feComposite in="SourceGraphic" in2="blur" operator="over" />
-      </filter>
-    </defs>
-    {/* Energy Trail */}
-    <path 
-      d="M12 22L8 14L12 16L16 14L12 22Z" 
-      fill="url(#vGrad)" 
-      opacity="0.4"
-      filter="url(#vGlow)"
-    />
-    {/* Main V Shape */}
-    <path 
-      d="M12 20L3 4H7L12 15L17 4H21L12 20Z" 
-      fill="url(#vGrad)" 
-      filter="url(#vGlow)"
-    />
-    {/* Rocket Core */}
-    <path 
-      d="M12 15L10 11L12 9L14 11L12 15Z" 
-      fill="white" 
-      opacity="0.9"
-    />
-  </svg>
-);
+
 
 const CinematicIntro = ({ onComplete }: { onComplete: () => void }) => {
   const [isMobile, setIsMobile] = useState(false);
@@ -1046,15 +1005,7 @@ export default function App() {
   const [redeemError, setRedeemError] = useState('');
   const [redeemSuccess, setRedeemSuccess] = useState('');
 
-  const VALID_CODES: Record<string, number> = {
-    'VS-PR-2026-77': 50,
-    'DEMO-ACTIVE-99': 20,
-    'TEACHER-GIFT-26': 100,
-    'BETA-UNLOCK-55': 10,
-    'VSPRINT-SECRET-X': 200
-  };
-
-  const handleRedeem = () => {
+  const handleRedeem = async () => {
     setRedeemError('');
     setRedeemSuccess('');
     const code = redeemCodeInput.trim().toUpperCase();
@@ -1069,27 +1020,39 @@ export default function App() {
       return;
     }
 
-    if (VALID_CODES[code]) {
-      const bonus = VALID_CODES[code];
-      const newQuota = bonusQuota + bonus;
-      setBonusQuota(newQuota);
-      setUsedCodes(prev => {
-        const updated = [...prev, code];
-        localStorage.setItem('vprint_used_codes', JSON.stringify(updated));
-        return updated;
+    try {
+      const response = await fetch('/api/redeem', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code })
       });
-      localStorage.setItem('vprint_bonus_quota', newQuota.toString());
-      setRedeemSuccess(`Successfully unlocked ${bonus} more answers!`);
-      setRedeemCodeInput('');
       
-      // Force a re-check of the plan limit by slightly delaying the modal close
-      // and ensuring the UI knows the quota has increased.
-      setTimeout(() => {
-        setShowPlanLimit(false);
-        setRedeemSuccess('');
-      }, 2000);
-    } else {
-      setRedeemError('Invalid code. Please check and try again.');
+      const data = await response.json();
+
+      if (data.success) {
+        const bonus = data.bonus;
+        const newQuota = bonusQuota + bonus;
+        setBonusQuota(newQuota);
+        setUsedCodes(prev => {
+          const updated = [...prev, code];
+          localStorage.setItem('vprint_used_codes', JSON.stringify(updated));
+          return updated;
+        });
+        localStorage.setItem('vprint_bonus_quota', newQuota.toString());
+        setRedeemSuccess(`Successfully unlocked ${bonus} more answers!`);
+        setRedeemCodeInput('');
+        
+        // Force a re-check of the plan limit by slightly delaying the modal close
+        // and ensuring the UI knows the quota has increased.
+        setTimeout(() => {
+          setShowPlanLimit(false);
+          setRedeemSuccess('');
+        }, 2000);
+      } else {
+        setRedeemError(data.message || 'Invalid code. Please check and try again.');
+      }
+    } catch (err) {
+      setRedeemError('Network error. Please try again later.');
     }
   };
   const toolRef = useRef<HTMLDivElement>(null);
@@ -1212,91 +1175,17 @@ export default function App() {
 
   const attemptFetch = async (currentPrompt: string, id: string, attempt: number = 1) => {
     try {
-      const ai = getAI();
-      const result = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: [{ parts: [{ text: currentPrompt }] }],
-        config: {
-          systemInstruction: `
-==================================
-ROLE: THE VSprint COACH
-==================================
-You are VSprint AI — a world-class coding mentor. You don't just provide code; you build developers. 
-
-Your personality:
-- Expert yet accessible (Senior Developer meets Friendly Teacher).
-- Encouraging but precise.
-- Obsessed with the "Why" behind the "How".
-
-----------------------------------
-COACHING PHILOSOPHY
-----------------------------------
-1. **Detect Intent & Level**: 
-   - If the prompt is simple ("How to center a div"), explain like a patient teacher.
-   - If the prompt is technical ("Explain React hooks"), speak like a senior dev explaining to a junior.
-2. **The "Why" First**: Before showing code, explain the logic. Why use Flexbox over Grid here? Why use a state instead of a variable?
-3. **Clean Code**: Your code must be a gold standard for the user to follow.
-
-----------------------------------
-RESPONSE MODES
-----------------------------------
-
-1. **GREETINGS / CHAT**:
-   If the user greets you or asks non-coding questions:
-   {
-     "type": "chat",
-     "message": "Hey! I'm your VSprint Coach. I'm here to help you master coding through building. What's on your mind? We can build a project, debug some code, or I can explain a tricky concept."
-   }
-
-2. **CODING / BUILDING / EXPLAINING**:
-   Return STRICT JSON:
-   {
-     "type": "project",
-     "explanation": "Start with a 1-sentence 'Big Picture' overview. Then, 2-3 sentences explaining the 'Why' (the architectural or logical reason for this approach).",
-     "code": {
-       "html": "Semantic, accessible HTML5 structure. DO NOT include <style> or <script> tags here. ONLY the body content.",
-       "css": "Modern, mobile-first CSS. DO NOT include <style> tags. ONLY the raw CSS rules.",
-       "js": "Clean, modern JavaScript (ES6+). DO NOT include <script> tags. ONLY the raw JavaScript code."
-     },
-     "learning": {
-       "logic": [
-         "Step 1: The logical starting point (e.g., 'First, we define our state to track user input...')",
-         "Step 2: The core action (e.g., 'Next, we listen for the click event to trigger the calculation...')",
-         "Step 3: The result (e.g., 'Finally, we update the DOM to show the user their result instantly.')"
-       ],
-       "mistake": "A 'Senior Developer' insight. What is a common pitfall here? (e.g., forgetting to prevent default form behavior, or memory leaks with listeners).",
-       "practiceTask": "A specific, actionable challenge that builds on this code. (e.g., 'Now try adding a reset button that clears the input and the result. This will help you understand state resetting.')",
-       "nextSteps": [
-         "A short, catchy follow-up question 1 (e.g., 'How to add a dark mode?')",
-         "A short, catchy follow-up question 2 (e.g., 'Can we add an animation?')",
-         "A short, catchy follow-up question 3 (e.g., 'How to save this to local storage?')"
-       ]
-     }
-   }
-
-----------------------------------
-STRICT CONSTRAINTS
-----------------------------------
-- NEVER include markdown outside the JSON.
-- NEVER leave fields empty.
-- NEVER use the words 'Drill' or 'Challenge'—only 'practiceTask'.
-- The 'logic' field MUST be an array of strings.
-- The 'nextSteps' field MUST be an array of exactly 3 strings.
-- Ensure the UI generated in the code fields is visually stunning (use gradients, shadows, and rounded corners).
-- If the user asks for something impossible or dangerous, politely explain why as a coach would.
-
-----------------------------------
-FINAL RULE
-----------------------------------
-Return ONLY the JSON object. No preamble. No postscript.
-`,
-        },
+      const response = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: currentPrompt })
       });
 
-      const text = result.text;
-      if (!text) throw new Error("AI returned an empty response");
+      if (!response.ok) {
+        throw new Error("Failed to fetch from AI");
+      }
 
-      const parsedData = JSON.parse(text.replace(/```json\n/g, '').replace(/```/g, ''));
+      const parsedData = await response.json();
       
       if (parsedData.type === 'chat') {
         const safeResponse: AIResponse = {
@@ -1319,13 +1208,13 @@ Return ONLY the JSON object. No preamble. No postscript.
 
       const safeResponse: AIResponse = {
         explanation: parsedData.explanation,
-        html: parsedData.code.html,
-        css: parsedData.code.css,
-        javascript: parsedData.code.js,
-        logicBreakdown: parsedData.learning.logic.join('\n'),
-        technicalWeakPoint: parsedData.learning.mistake,
-        drill: parsedData.learning.practiceTask,
-        nextSteps: parsedData.learning.nextSteps,
+        html: parsedData.code?.html,
+        css: parsedData.code?.css,
+        javascript: parsedData.code?.js,
+        logicBreakdown: parsedData.learning?.logic?.join('\n'),
+        technicalWeakPoint: parsedData.learning?.mistake,
+        drill: parsedData.learning?.practiceTask,
+        nextSteps: parsedData.learning?.nextSteps,
       };
 
       console.log("Parsed AI Data:", safeResponse);
@@ -1694,100 +1583,19 @@ Return ONLY the JSON object. No preamble. No postscript.
           <div className="relative z-10 flex flex-col min-h-screen">
             
             {/* Sidebar */}
-            <AnimatePresence>
-              {isSidebarOpen && (
-                <>
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    onClick={() => setIsSidebarOpen(false)}
-                    className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[60] lg:hidden"
-                  />
-                  <motion.aside
-                    initial={{ x: -300 }}
-                    animate={{ x: 0 }}
-                    exit={{ x: -300 }}
-                    className="fixed top-0 left-0 h-full w-[280px] bg-white/80 dark:bg-zinc-900/90 backdrop-blur-2xl border-r border-slate-200 dark:border-white/10 z-[70] shadow-2xl flex flex-col"
-                  >
-                    <div className="p-6 border-b border-slate-200 dark:border-white/10 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <VSprintLogo className="w-8 h-8" />
-                        <span className="font-bold text-lg tracking-tight dark:text-white">History</span>
-                      </div>
-                      <button onClick={() => setIsSidebarOpen(false)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/5 text-slate-500 dark:text-slate-400">
-                        <X className="w-5 h-5" />
-                      </button>
-                    </div>
-
-                    <div className="p-4">
-                      <button
-                        onClick={startNewChat}
-                        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold transition-all shadow-lg shadow-blue-500/20"
-                      >
-                        <Plus className="w-5 h-5" />
-                        New Chat
-                      </button>
-                    </div>
-
-                    <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
-                      {conversations.length === 0 ? (
-                        <div className="text-center py-10 text-slate-400 dark:text-zinc-500 text-sm">
-                          No history yet. Start a new chat!
-                        </div>
-                      ) : (
-                        conversations.map((conv) => (
-                          <button
-                            key={conv.id}
-                            onClick={() => {
-                              setCurrentConversationId(conv.id);
-                              setIsSidebarOpen(false);
-                              scrollToTool();
-                            }}
-                            className={`w-full text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 group ${
-                              currentConversationId === conv.id
-                                ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-500/20'
-                                : 'hover:bg-slate-100 dark:hover:bg-white/5 text-slate-600 dark:text-slate-400 border border-transparent'
-                            }`}
-                          >
-                            <MessageSquare className={`w-4 h-4 ${currentConversationId === conv.id ? 'text-blue-500' : 'text-slate-400 group-hover:text-blue-400'}`} />
-                            <span className="truncate text-sm font-medium">{conv.title}</span>
-                          </button>
-                        ))
-                      )}
-                    </div>
-
-                      <div className="p-6 border-t border-slate-200 dark:border-white/10 space-y-4">
-                        {!isPresentationMode && (
-                          <button 
-                            onClick={() => {
-                              setShowPlanLimit(true);
-                              setIsSidebarOpen(false);
-                            }}
-                            className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600/10 to-indigo-600/10 hover:from-blue-600/20 hover:to-indigo-600/20 text-blue-600 dark:text-blue-400 border border-blue-500/20 font-semibold transition-all flex items-center justify-center gap-2 group"
-                          >
-                            <Ticket className="w-4 h-4 group-hover:rotate-12 transition-transform" />
-                            Redeem Code
-                          </button>
-                        )}
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3 text-sm text-slate-500 dark:text-zinc-400">
-                            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                            <span className="truncate max-w-[120px]">{user?.email}</span>
-                          </div>
-                          <button
-                            onClick={() => setIsPresentationMode(!isPresentationMode)}
-                            className={`p-2 rounded-lg transition-colors ${isPresentationMode ? 'bg-blue-500/20 text-blue-500' : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5'}`}
-                            title="Presentation Mode"
-                          >
-                            <Monitor className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                  </motion.aside>
-                </>
-              )}
-            </AnimatePresence>
+            <Sidebar 
+              isSidebarOpen={isSidebarOpen}
+              setIsSidebarOpen={setIsSidebarOpen}
+              conversations={conversations}
+              currentConversationId={currentConversationId}
+              setCurrentConversationId={setCurrentConversationId}
+              startNewChat={startNewChat}
+              scrollToTool={scrollToTool}
+              isPresentationMode={isPresentationMode}
+              setIsPresentationMode={setIsPresentationMode}
+              setShowPlanLimit={setShowPlanLimit}
+              user={user}
+            />
 
             {/* Header */}
             <header className="flex justify-between items-center max-w-6xl mx-auto w-full p-6 md:p-8 relative z-50">

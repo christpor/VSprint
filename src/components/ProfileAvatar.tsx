@@ -17,16 +17,28 @@ export const ProfileAvatar = ({ user }: { user: SupabaseUser }) => {
     try {
       setLoading(true);
       setError(null);
+      
+      // 1. Try to get custom avatar from profile
       const profile = await getProfile(user.id);
       if (profile?.avatar_url) {
         const signedUrl = await getAvatarUrl(profile.avatar_url);
         setAvatarUrl(signedUrl);
-      } else {
-        setAvatarUrl(null);
+        return;
       }
+
+      // 2. Fallback to Google avatar from metadata
+      const googleAvatar = user.user_metadata?.avatar_url || user.user_metadata?.picture;
+      if (googleAvatar) {
+        setAvatarUrl(googleAvatar);
+        return;
+      }
+
+      setAvatarUrl(null);
     } catch (err) {
       console.error('Error fetching avatar:', err);
-      setError('Failed to load avatar. Please check your connection.');
+      // Don't show error to user if it's just a profile fetch failure, 
+      // just fallback to default icon
+      setAvatarUrl(null);
     } finally {
       setLoading(false);
     }

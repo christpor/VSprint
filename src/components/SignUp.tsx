@@ -26,14 +26,20 @@ export const SignUp = ({ onSwitch }: { onSwitch: () => void }) => {
   };
 
   const handleGoogleSignIn = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: window.location.origin,
-      },
-    });
-    if (error) {
-      setError(error.message);
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin,
+        },
+      });
+      if (error) {
+        console.error('Google SignIn Error:', error.message);
+        setError(`Google SignIn Error: ${error.message}`);
+      }
+    } catch (err) {
+      console.error('Unexpected Google SignIn Error:', err);
+      setError('An unexpected error occurred during Google SignIn.');
     }
   };
 
@@ -77,7 +83,8 @@ export const SignUp = ({ onSwitch }: { onSwitch: () => void }) => {
         </button>
         <button
           type="button"
-          className="w-full py-3 rounded-xl bg-white dark:bg-zinc-800 text-slate-900 dark:text-white font-semibold flex items-center justify-center gap-2 border border-slate-200 dark:border-white/10 cursor-default"
+          onClick={handleGoogleSignIn}
+          className="w-full py-3 rounded-xl bg-white dark:bg-zinc-800 text-slate-900 dark:text-white font-semibold flex items-center justify-center gap-2 border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-zinc-700 transition-colors"
         >
           <img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" alt="Google" className="w-5 h-5" referrerPolicy="no-referrer" />
           Continue with Google
