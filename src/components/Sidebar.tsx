@@ -2,7 +2,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Plus, MessageSquare, Ticket, Monitor } from 'lucide-react';
 import { VSprintLogo } from './VSprintLogo';
-import { Conversation } from '../App';
+import { Conversation } from '../types';
 
 interface SidebarProps {
   isSidebarOpen: boolean;

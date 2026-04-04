@@ -1,5 +1,5 @@
 import { supabase } from '../supabaseClient';
-import { InteractionType } from '../App';
+import { InteractionType } from '../types';
 
 export const getInteractions = async (userId: string, conversationId?: string) => {
   let query = supabase
