@@ -111,7 +111,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3 text-sm text-slate-500 dark:text-zinc-400">
                     <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                    <span className="truncate max-w-[120px]">{user?.email}</span>
+                    <span className="truncate max-w-[120px]">{user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email}</span>
                   </div>
                   <button
                     onClick={() => setIsPresentationMode(!isPresentationMode)}
