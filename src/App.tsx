@@ -220,8 +220,8 @@ export default function App() {
   const [redeemError, setRedeemError] = useState('');
   const [redeemSuccess, setRedeemSuccess] = useState('');
 
-  const isUnlimitedUser = user?.email === 'christporr@gmail.com';
-  const isLimitReached = !isUnlimitedUser && totalActivity >= (4 + bonusQuota);
+  const isUnlimitedUser = user?.email === 'christporr@gmail.com' || user?.email === 'porkh377@gmail.com';
+  const isLimitReached = !isUnlimitedUser && totalActivity >= (100 + bonusQuota);
 
   const handleRedeem = async () => {
     setRedeemError('');
@@ -417,8 +417,18 @@ export default function App() {
         });
       }
 
-      const responseText = result.response.text();
-      const parsedData = JSON.parse(responseText.replace(/```json\n?|\n?```/g, ''));
+      const responseText = result.text || (typeof result.response?.text === 'function' ? result.response.text() : '');
+      
+      // Robust JSON extraction: search for the first '{' and last '}'
+      const jsonStart = responseText.indexOf('{');
+      const jsonEnd = responseText.lastIndexOf('}');
+      
+      if (jsonStart === -1 || jsonEnd === -1) {
+        throw new Error("AI did not return a valid JSON object");
+      }
+      
+      const jsonString = responseText.substring(jsonStart, jsonEnd + 1);
+      const parsedData = JSON.parse(jsonString);
       
       if (parsedData.type === 'chat') {
         const safeResponse: AIResponse = {

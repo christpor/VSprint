@@ -37,105 +37,98 @@ export const InteractionItem: React.FC<InteractionItemProps> = ({
   const weakPointRef = useRef<HTMLDivElement>(null);
   const drillRef = useRef<HTMLDivElement>(null);
 
+  const [hasTyped, setHasTyped] = useState(false);
+
   useEffect(() => {
-    if (interaction.response) {
+    if (interaction.response && !hasTyped) {
       if (interaction.response.html || interaction.response.css || interaction.response.javascript) {
         setActiveTab('preview'); // Default to preview if code exists
       }
 
-      if (interaction.loading) {
-        setDisplayedExplanation("");
-        setIsTyping(true);
-        setRevealedSections({ 
-          html: false, 
-          css: false, 
-          js: false, 
-          logic: false, 
-          weakPoint: false, 
-          drill: false 
-        });
+      setDisplayedExplanation("");
+      setIsTyping(true);
+      setHasTyped(true);
+      setRevealedSections({ 
+        html: false, 
+        css: false, 
+        js: false, 
+        logic: false, 
+        weakPoint: false, 
+        drill: false 
+      });
 
-        const text = interaction.response.explanation || interaction.response.chatMessage || "";
-        let i = 0;
-        let lastTime = performance.now();
-        let animationFrameId: number;
+      const text = interaction.response.explanation || interaction.response.chatMessage || "";
+      let i = 0;
+      let lastTime = performance.now();
+      let animationFrameId: number;
 
-        const typeChar = (time: number) => {
-          const elapsed = time - lastTime;
-          if (elapsed > 15) {
-            const charsToAdd = Math.max(1, Math.floor(elapsed / 15));
-            i += charsToAdd;
-            setDisplayedExplanation(text.slice(0, i));
-            lastTime = time - (elapsed % 15);
-          }
-          if (i < text.length) {
-            animationFrameId = requestAnimationFrame(typeChar);
-          } else {
-            setIsTyping(false);
-            setDisplayedExplanation(text);
-          }
-        };
-        
-        animationFrameId = requestAnimationFrame(typeChar);
+      const typeChar = (time: number) => {
+        const elapsed = time - lastTime;
+        if (elapsed > 15) {
+          const charsToAdd = Math.max(1, Math.floor(elapsed / 15));
+          i += charsToAdd;
+          setDisplayedExplanation(text.slice(0, i));
+          lastTime = time - (elapsed % 15);
+        }
+        if (i < text.length) {
+          animationFrameId = requestAnimationFrame(typeChar);
+        } else {
+          setIsTyping(false);
+          setDisplayedExplanation(text);
+        }
+      };
+      
+      animationFrameId = requestAnimationFrame(typeChar);
 
-        const scrollToRef = (ref: React.RefObject<HTMLDivElement | null>) => {
-          if (isLatest && ref.current) {
-            const yOffset = -100;
-            const y = ref.current.getBoundingClientRect().top + window.pageYOffset + yOffset;
-            window.scrollTo({ top: y, behavior: 'smooth' });
-          }
-        };
+      const scrollToRef = (ref: React.RefObject<HTMLDivElement | null>) => {
+        if (isLatest && ref.current) {
+          const yOffset = -100;
+          const y = ref.current.getBoundingClientRect().top + window.pageYOffset + yOffset;
+          window.scrollTo({ top: y, behavior: 'smooth' });
+        }
+      };
 
-        const t1 = setTimeout(() => {
-          setRevealedSections(prev => ({ ...prev, html: true }));
-          setTimeout(() => scrollToRef(htmlRef), 50);
-        }, 400);
+      const t1 = setTimeout(() => {
+        setRevealedSections(prev => ({ ...prev, html: true }));
+        setTimeout(() => scrollToRef(htmlRef), 50);
+      }, 400);
 
-        const t2 = setTimeout(() => {
-          setRevealedSections(prev => ({ ...prev, css: true }));
-        }, 800);
+      const t2 = setTimeout(() => {
+        setRevealedSections(prev => ({ ...prev, css: true }));
+      }, 800);
 
-        const t3 = setTimeout(() => {
-          setRevealedSections(prev => ({ ...prev, js: true }));
-        }, 1200);
+      const t3 = setTimeout(() => {
+        setRevealedSections(prev => ({ ...prev, js: true }));
+      }, 1200);
 
-        const t4 = setTimeout(() => {
-          setRevealedSections(prev => ({ ...prev, logic: true }));
-          setTimeout(() => scrollToRef(logicRef), 50);
-        }, 1800);
+      const t4 = setTimeout(() => {
+        setRevealedSections(prev => ({ ...prev, logic: true }));
+        setTimeout(() => scrollToRef(logicRef), 50);
+      }, 1800);
 
-        const t5 = setTimeout(() => {
-          setRevealedSections(prev => ({ ...prev, weakPoint: true }));
-        }, 2200);
+      const t5 = setTimeout(() => {
+        setRevealedSections(prev => ({ ...prev, weakPoint: true }));
+      }, 2200);
 
-        const t6 = setTimeout(() => {
-          setRevealedSections(prev => ({ ...prev, drill: true }));
-        }, 2600);
+      const t6 = setTimeout(() => {
+        setRevealedSections(prev => ({ ...prev, drill: true }));
+      }, 2600);
 
-        return () => {
-          cancelAnimationFrame(animationFrameId);
-          clearTimeout(t1);
-          clearTimeout(t2);
-          clearTimeout(t3);
-          clearTimeout(t4);
-          clearTimeout(t5);
-          clearTimeout(t6);
-        };
-      } else {
-        // Not loading (from history), show everything immediately
-        setDisplayedExplanation(interaction.response.explanation || interaction.response.chatMessage || "");
-        setIsTyping(false);
-        setRevealedSections({ 
-          html: true, 
-          css: true, 
-          js: true, 
-          logic: true, 
-          weakPoint: true, 
-          drill: true 
-        });
-      }
+      return () => {
+        cancelAnimationFrame(animationFrameId);
+        clearTimeout(t1);
+        clearTimeout(t2);
+        clearTimeout(t3);
+        clearTimeout(t4);
+        clearTimeout(t5);
+        clearTimeout(t6);
+      };
+    } else if (interaction.response && hasTyped && !interaction.loading) {
+      // Already typed or from history, ensure state is set
+      setDisplayedExplanation(interaction.response.explanation || interaction.response.chatMessage || "");
+      setIsTyping(false);
     }
-  }, [interaction.response, isLatest, interaction.loading]);
+  }, [interaction.response, isLatest, interaction.loading, hasTyped]);
 
   const copyToClipboard = (text: string, key: string) => {
     navigator.clipboard.writeText(text);
