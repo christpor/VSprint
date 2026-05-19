@@ -131,13 +131,10 @@ export default function App() {
         if (error.message.includes('refresh_token')) {
           supabase.auth.signOut();
         }
-        setAuthView('signin');
         return;
       }
       
-      if (!session) {
-        setAuthView('signin');
-      } else {
+      if (session) {
         setUser(session.user);
         fetchTotalActivity(session.user.id);
       }
@@ -147,7 +144,7 @@ export default function App() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
-        setAuthView('signin');
+        setAuthView('home');
         setUser(null);
         setInteractions([]);
         setTotalActivity(0);
@@ -157,8 +154,6 @@ export default function App() {
         setAuthView('home');
         setUser(session.user);
         fetchTotalActivity(session.user.id);
-      } else {
-        setAuthView('signin');
       }
     });
 
@@ -395,21 +390,21 @@ export default function App() {
     try {
       const ai = getAI();
       
-      // Attempt with the God-Tier 3.0 model first
+      // Try Gemini 2.0 Flash first, fallback to 1.5 Pro if there is an error (like Quota Exceeded)
       let result;
       try {
         result = await ai.models.generateContent({
-          model: "gemini-3.0-flash",
+          model: "gemini-2.0-flash",
           contents: [{ parts: [{ text: currentPrompt }] }],
           config: {
             systemInstruction: COACH_INSTRUCTIONS,
           },
         });
-      } catch (v3Error) {
-        console.warn("Gemini 3.0 not available, falling back to 2.0 Flash:", v3Error);
-        // Fallback to the reliable 2.0 Flash
+      } catch (primaryError) {
+        console.warn("Gemini 2.0 Flash failed (likely quota), trying 1.5 Pro:", primaryError);
+        // Fallback to the stable 1.5 Pro
         result = await ai.models.generateContent({
-          model: "gemini-2.0-flash",
+          model: "gemini-1.5-pro",
           contents: [{ parts: [{ text: currentPrompt }] }],
           config: {
             systemInstruction: COACH_INSTRUCTIONS,
@@ -919,34 +914,93 @@ export default function App() {
               ) : (
                 <>
                   {/* Hero Section */}
-              <section className="pt-20 pb-48 px-4 sm:px-6 md:px-10 text-center max-w-5xl mx-auto relative min-h-[80vh] flex flex-col justify-center">
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[radial-gradient(circle,rgba(14,165,233,0.15)_0%,transparent_70%)] dark:bg-[radial-gradient(circle,rgba(14,165,233,0.1)_0%,transparent_70%)] rounded-full blur-3xl pointer-events-none" />
-                <motion.div
-                  initial="hidden"
-                  whileInView="visible"
-                  viewport={{ once: true, margin: "-100px" }}
-                  variants={staggerContainer}
-                  className="relative z-10"
-                >
-                  <motion.div variants={itemVariants} className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-sky-100/50 dark:bg-sky-500/10 border border-sky-200 dark:border-sky-500/20 text-sky-700 dark:text-sky-300 text-sm font-medium mb-8 backdrop-blur-sm">
-                    <VSprintLogo className="w-4 h-4" />
-                    <span>Your AI-Powered Senior Developer Coach</span>
+              <section className="pt-20 pb-32 md:pb-48 px-4 sm:px-6 md:px-10 max-w-7xl mx-auto relative min-h-[90vh] flex flex-col justify-center overflow-visible">
+                {/* Background Glows for Depth */}
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-[radial-gradient(circle,rgba(56,189,248,0.08)_0%,transparent_70%)] dark:bg-[radial-gradient(circle,rgba(14,165,233,0.05)_0%,transparent_70%)] rounded-full blur-[120px] pointer-events-none z-0" />
+                
+                <div className="grid lg:grid-cols-2 gap-12 lg:gap-20 items-center relative z-10">
+                  {/* Left Column: Content */}
+                  <motion.div
+                    initial="hidden"
+                    whileInView="visible"
+                    viewport={{ once: true, margin: "-100px" }}
+                    variants={staggerContainer}
+                    className="text-center lg:text-left order-2 lg:order-1"
+                  >
+                    <motion.div variants={itemVariants} className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/40 dark:bg-sky-500/10 border border-sky-200/50 dark:border-sky-500/20 text-sky-700 dark:text-sky-300 text-sm font-medium mb-8 backdrop-blur-md shadow-sm">
+                      <VSprintLogo className="w-4 h-4" />
+                      <span>The Future of High-Density Coding</span>
+                    </motion.div>
+                    <motion.h1 variants={itemVariants} className="text-4xl sm:text-5xl md:text-7xl font-bold mb-8 tracking-tight text-slate-900 dark:text-white leading-[1.1]">
+                      Master Coding at the <br className="hidden md:block" />
+                      <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-cyan-500 dark:from-sky-400 dark:to-emerald-400">Speed of Thought</span>
+                    </motion.h1>
+                    <motion.p variants={itemVariants} className="text-lg sm:text-xl text-slate-600 dark:text-slate-400 max-w-2xl mx-auto lg:mx-0 mb-10 leading-relaxed font-light">
+                      Break through coding blocks instantly. Get crystal-clear explanations, production-ready code, and targeted drills designed for deep mastery.
+                    </motion.p>
+                    <motion.div variants={itemVariants} className="flex flex-col sm:flex-row items-center gap-4 justify-center lg:justify-start">
+                      <button
+                        onClick={scrollToTool}
+                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 rounded-2xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold text-lg shadow-2xl shadow-blue-500/20 hover:shadow-blue-500/40 transition-all hover:scale-105 active:scale-95 group"
+                      >
+                        Start Learning 
+                        <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                      </button>
+                      <button 
+                        onClick={() => setAuthView('signup')}
+                        className="w-full sm:w-auto px-8 py-4 rounded-2xl bg-white/50 dark:bg-white/5 border border-slate-200 dark:border-white/10 backdrop-blur-xl text-slate-600 dark:text-slate-300 font-bold text-lg hover:bg-white/80 dark:hover:bg-white/10 transition-all"
+                      >
+                        View Demo
+                      </button>
+                    </motion.div>
                   </motion.div>
-                  <motion.h1 variants={itemVariants} className="text-4xl sm:text-5xl md:text-7xl font-bold mb-8 tracking-tight text-sky-600 dark:text-sky-400 leading-tight">
-                    Master Coding at the <br className="hidden md:block" />Speed of Thought
-                  </motion.h1>
-                  <motion.p variants={itemVariants} className="text-lg sm:text-xl text-sky-500 dark:text-sky-300 max-w-2xl mx-auto mb-10 leading-relaxed">
-                    Break through coding blocks instantly. Get crystal-clear explanations, production-ready code, and targeted drills designed for deep mastery.
-                  </motion.p>
-                  <motion.div variants={itemVariants}>
-                    <button
-                      onClick={scrollToTool}
-                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white font-semibold text-lg shadow-xl shadow-cyan-500/25 hover:shadow-cyan-500/40 transition-all hover:scale-105 active:scale-95"
+
+                  {/* Right Column: 3D Illustration Container */}
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 1.2, ease: [0.22, 1, 0.36, 1], delay: 0.2 }}
+                    className="relative order-1 lg:order-2 w-full h-[400px] sm:h-[500px] lg:h-[700px] flex items-center justify-center pointer-events-none select-none"
+                  >
+                    {/* Floating Glassmorphism Backdrop */}
+                    <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-purple-500/5 dark:from-sky-500/10 dark:to-indigo-500/10 rounded-[3rem] blur-3xl opacity-50" />
+                    
+                    {/* Robot Animation Wrapper */}
+                    <motion.div
+                      animate={{ 
+                        y: [0, -15, 0],
+                      }}
+                      transition={{ 
+                        duration: 6, 
+                        repeat: Infinity, 
+                        ease: "easeInOut" 
+                      }}
+                      className="w-full h-full relative z-10 overflow-hidden rounded-[3rem]"
                     >
-                      Start Learning <ArrowRight className="w-5 h-5" />
-                    </button>
+                      <div className="w-full h-[110%] -mt-[5%] flex items-center justify-center">
+                        {/* @ts-ignore */}
+                        <spline-viewer 
+                          url="https://prod.spline.design/hFHLeMRv-0hoKP7u/scene.splinecode"
+                          loading="lazy"
+                          hint="performance"
+                          className="w-full h-full scale-[1.2] sm:scale-[1.1] lg:scale-[1.3]"
+                          style={{
+                            // Restoring quality: Only use minimal brightness filter
+                            filter: 'brightness(1.4) saturate(1.1)',
+                            WebkitFilter: 'brightness(1.4) saturate(1.1)'
+                          }}
+                        />
+                      </div>
+
+                      {/* Anti-Badge Shield */}
+                      <div className="absolute bottom-0 right-0 w-32 h-12 bg-white/5 dark:bg-slate-950/5 backdrop-blur-sm pointer-events-none" />
+                    </motion.div>
+
+                    {/* Ambient Glows around the robot */}
+                    <div className="absolute top-1/4 right-1/4 w-32 h-32 bg-cyan-400/20 rounded-full blur-[60px] animate-pulse" />
+                    <div className="absolute bottom-1/4 left-1/4 w-32 h-32 bg-purple-400/15 rounded-full blur-[60px] animate-pulse" style={{ animationDelay: '2s' }} />
                   </motion.div>
-                </motion.div>
+                </div>
               </section>
 
           {/* How It Works */}
