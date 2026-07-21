@@ -2,16 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { getProfile, updateProfile, uploadAvatar, getAvatarUrl, deleteAvatar } from '../services/profileService';
 import { User, Camera, Loader2, Trash2 } from 'lucide-react';
-import type { User as SupabaseUser } from '@supabase/supabase-js';
+import type { User as FirebaseUser } from 'firebase/auth';
 
-export const ProfileAvatar = ({ user }: { user: SupabaseUser }) => {
+export const ProfileAvatar = ({ user }: { user: FirebaseUser }) => {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchAvatar();
-  }, [user.id]);
+  }, [user.uid]);
 
   const fetchAvatar = async () => {
     try {
@@ -19,7 +19,7 @@ export const ProfileAvatar = ({ user }: { user: SupabaseUser }) => {
       setError(null);
       
       // 1. Try to get custom avatar from profile
-      const profile = await getProfile(user.id);
+      const profile = await getProfile(user.uid);
       if (profile?.avatar_url) {
         const signedUrl = await getAvatarUrl(profile.avatar_url);
         setAvatarUrl(signedUrl);
@@ -27,7 +27,7 @@ export const ProfileAvatar = ({ user }: { user: SupabaseUser }) => {
       }
 
       // 2. Fallback to Google avatar from metadata
-      const googleAvatar = user.user_metadata?.avatar_url || user.user_metadata?.picture;
+      const googleAvatar = user.photoURL;
       if (googleAvatar) {
         setAvatarUrl(googleAvatar);
         return;
@@ -57,7 +57,7 @@ export const ProfileAvatar = ({ user }: { user: SupabaseUser }) => {
         return;
       }
 
-      const profile = await getProfile(user.id);
+      const profile = await getProfile(user.uid);
       if (profile?.avatar_url) {
         try {
           await deleteAvatar(profile.avatar_url);
@@ -66,8 +66,8 @@ export const ProfileAvatar = ({ user }: { user: SupabaseUser }) => {
         }
       }
 
-      const path = await uploadAvatar(user.id, file);
-      await updateProfile(user.id, { avatar_url: path });
+      const path = await uploadAvatar(user.uid, file);
+      await updateProfile(user.uid, { avatar_url: path });
       await fetchAvatar();
     } catch (err) {
       console.error('Error uploading avatar:', err);
@@ -81,10 +81,10 @@ export const ProfileAvatar = ({ user }: { user: SupabaseUser }) => {
     try {
       setLoading(true);
       setError(null);
-      const profile = await getProfile(user.id);
+      const profile = await getProfile(user.uid);
       if (profile?.avatar_url) {
         await deleteAvatar(profile.avatar_url);
-        await updateProfile(user.id, { avatar_url: null });
+        await updateProfile(user.uid, { avatar_url: null });
         setAvatarUrl(null);
       }
     } catch (err) {

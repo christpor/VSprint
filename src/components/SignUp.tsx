@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { supabase } from '../supabaseClient';
+import { createUserWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
+import { auth, googleProvider } from '../firebaseClient';
 import { Mail, Lock, Loader2, ArrowRight } from 'lucide-react';
 
 export const SignUp = ({ onSwitch }: { onSwitch: () => void }) => {
@@ -14,32 +15,33 @@ export const SignUp = ({ onSwitch }: { onSwitch: () => void }) => {
     setLoading(true);
     setError(null);
 
-    const { error } = await supabase.auth.signUp({ email, password });
-    if (error) {
-      setError(error.message);
-    } else {
+    try {
+      await createUserWithEmailAndPassword(auth, email, password);
       sessionStorage.setItem('signup_email', email);
       sessionStorage.setItem('signup_success', 'true');
       onSwitch();
+    } catch (err: any) {
+      const code = err.code;
+      if (code === 'auth/email-already-in-use') {
+        setError('An account with this email already exists.');
+      } else if (code === 'auth/weak-password') {
+        setError('Password must be at least 6 characters.');
+      } else if (code === 'auth/invalid-email') {
+        setError('Please enter a valid email address.');
+      } else {
+        setError(err.message || 'Sign up failed. Please try again.');
+      }
     }
     setLoading(false);
   };
 
   const handleGoogleSignIn = async () => {
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: window.location.origin,
-        },
-      });
-      if (error) {
-        console.error('Google SignIn Error:', error.message);
-        setError(`Google SignIn Error: ${error.message}`);
-      }
-    } catch (err) {
-      console.error('Unexpected Google SignIn Error:', err);
-      setError('An unexpected error occurred during Google SignIn.');
+      await signInWithPopup(auth, googleProvider);
+      window.location.href = '/app';
+    } catch (err: any) {
+      if (err.code === 'auth/popup-closed-by-user') return;
+      setError(`Google sign-in failed: ${err.message}`);
     }
   };
 
@@ -66,11 +68,12 @@ export const SignUp = ({ onSwitch }: { onSwitch: () => void }) => {
           <Lock className="absolute left-3 top-3.5 w-5 h-5 text-slate-400" />
           <input
             type="password"
-            placeholder="Password"
+            placeholder="Password (min 6 characters)"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="w-full pl-10 pr-4 py-3 bg-white/50 dark:bg-zinc-800/50 border border-slate-200 dark:border-white/10 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
             required
+            minLength={6}
           />
         </div>
         {error && <p className="text-red-500 text-sm">{error}</p>}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { supabase } from '../supabaseClient';
+import { signInWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
+import { auth, googleProvider } from '../firebaseClient';
 import { Mail, Lock, Loader2, ArrowRight } from 'lucide-react';
 
 export const LogIn = ({ onSwitch }: { onSwitch: () => void }) => {
@@ -11,48 +12,47 @@ export const LogIn = ({ onSwitch }: { onSwitch: () => void }) => {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    const email = sessionStorage.getItem('signup_email');
+    const storedEmail = sessionStorage.getItem('signup_email');
     const success = sessionStorage.getItem('signup_success');
     if (success === 'true') {
-      setSuccessMessage('Your account has been created. Please check your email and verify your address before logging in.');
-      if (email) setEmail(email);
+      setSuccessMessage('Your account has been created. You can now log in.');
+      if (storedEmail) setEmail(storedEmail);
       sessionStorage.removeItem('signup_email');
       sessionStorage.removeItem('signup_success');
     }
   }, []);
 
-    const handleLogIn = async (e: React.FormEvent) => {
+  const handleLogIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
     setSuccessMessage(null);
 
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      setError(error.message);
-    } else if (data.session) {
-      window.location.href = '/';
-    } else {
-      setError('Log in failed. Please try again.');
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      window.location.href = '/app';
+    } catch (err: any) {
+      const code = err.code;
+      if (code === 'auth/invalid-credential' || code === 'auth/wrong-password') {
+        setError('Invalid email or password.');
+      } else if (code === 'auth/user-not-found') {
+        setError('No account found with this email.');
+      } else if (code === 'auth/too-many-requests') {
+        setError('Too many attempts. Please try again later.');
+      } else {
+        setError(err.message || 'Log in failed. Please try again.');
+      }
     }
     setLoading(false);
   };
 
   const handleGoogleLogIn = async () => {
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: window.location.origin,
-        },
-      });
-      if (error) {
-        console.error('Google LogIn Error:', error.message);
-        setError(`Google LogIn Error: ${error.message}`);
-      }
-    } catch (err) {
-      console.error('Unexpected Google LogIn Error:', err);
-      setError('An unexpected error occurred during Google LogIn.');
+      await signInWithPopup(auth, googleProvider);
+      window.location.href = '/app';
+    } catch (err: any) {
+      if (err.code === 'auth/popup-closed-by-user') return;
+      setError(`Google sign-in failed: ${err.message}`);
     }
   };
 

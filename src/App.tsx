@@ -17,7 +17,8 @@ import { LogIn } from './components/LogIn';
 import { SignUp } from './components/SignUp';
 import { ProfileAvatar } from './components/ProfileAvatar';
 import { getInteractions, createInteraction, updateInteraction, deleteInteraction } from './services/interactionService';
-import type { User as SupabaseUser } from '@supabase/supabase-js';
+import { onAuthStateChanged, signOut, type User as FirebaseUser } from 'firebase/auth';
+import { auth } from './firebaseClient';
 
 import { LandingPage } from './pages/LandingPage';
 import { AboutPage } from './pages/AboutPage';
@@ -27,7 +28,7 @@ const DEBUG = false;
 
 export default function App() {
   const [authView, setAuthView] = useState<'home' | 'signin' | 'signup'>('home');
-  const [user, setUser] = useState<SupabaseUser | null>(null);
+  const [user, setUser] = useState<FirebaseUser | null>(null);
   const [totalActivity, setTotalActivity] = useState<number>(0);
 
   const [isPresentationMode, setIsPresentationMode] = useState(false);
@@ -47,64 +48,29 @@ export default function App() {
   }, []);
   
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
-      if (error) {
-        console.error('Auth session error:', error.message);
-        if (error.message.includes('refresh_token')) {
-          supabase.auth.signOut();
-        }
-        return;
-      }
-      
-      if (session) {
-        setUser(session.user);
-        fetchTotalActivity(session.user.id);
-      }
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT') {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        setAuthView('home');
+        setUser(firebaseUser);
+        fetchTotalActivity(firebaseUser.uid);
+      } else {
         setAuthView('home');
         setUser(null);
         setInteractions([]);
         setTotalActivity(0);
         setCurrentConversationId(null);
         setConversations([]);
-      } else if (session) {
-        setAuthView('home');
-        setUser(session.user);
-        fetchTotalActivity(session.user.id);
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => unsubscribe();
   }, [fetchTotalActivity]);
 
+  // Activity tracking - fetch on user change
   useEffect(() => {
     if (!user) return;
-
-    const channel = supabase
-      .channel('interactions_count')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'interactions',
-          filter: `user_id=eq.${user.id}`,
-        },
-        () => {
-          setTotalActivity(prev => prev + 1);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user]);
+    fetchTotalActivity(user.uid);
+  }, [user, fetchTotalActivity]);
 
   const [showIntro, setShowIntro] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -318,7 +284,7 @@ export default function App() {
       const { data, error } = await supabase
         .from('interactions')
         .select('conversation_id, prompt, created_at')
-        .eq('user_id', user.id)
+        .eq('user_id', user.uid)
         .order('created_at', { ascending: true });
       
       if (error) throw error;
@@ -346,7 +312,7 @@ export default function App() {
   const fetchInteractions = async (convId: string) => {
     if (!user) return;
     try {
-      const data = await getInteractions(user.id, convId);
+      const data = await getInteractions(user.uid, convId);
       setInteractions(data.map(i => ({ ...i, loading: false, statusMessage: null })));
     } catch (err) {
       console.error('Error fetching interactions:', err);
@@ -572,7 +538,7 @@ export default function App() {
                     )}
                     <ProfileAvatar user={user} />
                     <button 
-                      onClick={() => supabase.auth.signOut()} 
+                      onClick={() => signOut(auth)} 
                       className="px-4 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 font-medium transition-all flex items-center gap-2"
                     >
                       <LogOut className="w-4 h-4" />

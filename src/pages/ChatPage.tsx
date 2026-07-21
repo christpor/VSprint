@@ -7,7 +7,7 @@ import { InteractionItem } from '../components/InteractionItem';
 import { AIResponse, InteractionType, Conversation } from '../types';
 import { supabase } from '../supabaseClient';
 import { getInteractions, createInteraction, updateInteraction } from '../services/interactionService';
-import type { User as SupabaseUser } from '@supabase/supabase-js';
+import type { User as FirebaseUser } from 'firebase/auth';
 
 const COACH_INSTRUCTIONS = `
 ==================================
@@ -92,7 +92,7 @@ const getAI = () => {
 };
 
 interface ChatPageProps {
-  user: SupabaseUser;
+  user: FirebaseUser;
   totalActivity: number;
   setTotalActivity: React.Dispatch<React.SetStateAction<number>>;
   bonusQuota: number;
@@ -297,7 +297,7 @@ export function ChatPage({
 
     const localInteraction: InteractionType = {
       id: interactionId,
-      user_id: user.id,
+      user_id: user.uid,
       conversation_id: convId,
       prompt: currentPrompt.trim(),
       response: null,
@@ -318,7 +318,7 @@ export function ChatPage({
       const { count, error } = await supabase
         .from('interactions')
         .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id);
+        .eq('user_id', user.uid);
       
       if (error) throw error;
       
@@ -337,7 +337,7 @@ export function ChatPage({
     }
 
     // Save to DB
-    createInteraction(user.id, convId, currentPrompt.trim(), interactionId).catch(err => {
+    createInteraction(user.uid, convId, currentPrompt.trim(), interactionId).catch(err => {
       console.warn('Failed to save interaction to DB:', err);
     });
 
